@@ -1,0 +1,176 @@
+{
+	"swarmfeeder": {
+		"Name": "swarm feeder",
+		"Description": "red, tick-like, and attacks in swarms",
+		"Size": "tiny",
+		"Loot": ""
+	},
+	"hammerheadspawn": {
+		"Name": "hammerhead spawn",
+		"Description": "red, shark-like, with big eyes and attacks in swarms",
+		"Size": "tiny",
+		"Loot": ""
+	},
+	"tigerthresher_hatchling": {
+		"Name": "tiger thresher hatchling",
+		"Description": "eel-like, covered in the red gooey insides of its egg, and lacking visible eyes",
+		"Size": "tiny",
+		"Loot": ""
+	},
+	"crawler_hatchling": {
+		"Name": "crawler hatchling",
+		"Description": "agile and covered in the red gooey insides of its egg with multiple hand-like appendages, allowing them to latch on surfaces, swim and crawl",
+		"Size": "tiny",
+		"Loot": ""
+	},
+	"mudraptor_hatchling": {
+		"Name": "mudraptor hatchling",
+		"Description": "agile, bipedal, covered in the red gooey insides its egg",
+		"Size": "tiny",
+		"Loot": ""
+	},
+	"leucocyte": {
+		"Name": "leucocyte",
+		"Description": "agile, green algae-like creature that attacks in swarms",
+		"Size": "tiny",
+		"Loot": "paralyxis"
+	},
+	"terminalcell": {
+		"Name": "terminal cell",
+		"Description": "agile, algae-like creature that attack in swarms and eat a submarine's hull",
+		"Size": "tiny",
+		"Loot": ""
+	},
+	"molochbaby": {
+		"Name": "moloch baby",
+		"Description": "pink jellyfish-like creature that slowly floats around and screeches if threatened",
+		"Size": "small",
+		"Loot": "swim bladder, alien blood"
+	},
+	"crawler": {
+		"Name": "crawler",
+		"Description": "agile with four pairs of red eyes, green skin, segmented spines on its back and two hand-like appendages that allow them to latch onto surfaces, swim and crawl",
+		"Size": "small",
+		"Loot": "alien blood"
+	},
+	"crawlerhusk": {
+		"Name": "husked crawler",
+		"Description": "agile with grey eyes, rotten grey-green skin, segmented spines on its back, husk stinger protruding from its mouth, and two hand-like appendages that allow them to latch onto surfaces, swim and crawl",
+		"Size": "small",
+		"Loot": "alien blood, velonaceps calyx eggs"
+	},
+	"spineling": {
+		"Name": "spineling",
+		"Description": "agile, spindly, with twelve metallic-white spines and scales on its rear, capable of twisting on the spot to get the best shot with its plethora of natural harpoons",
+		"Size": "small",
+		"Loot": "alien blood"
+	},
+	"tigerthresher": {
+		"Name": "tiger thresher",
+		"Description": "eel-like, with splotches and stripes along the body, a bioluminescent head, a dimly glowing tail, a spine adorned with spiny protrusions, and lacking visible eyes",
+		"Size": "small",
+		"Loot": "alien blood"
+	},
+	"husk": {
+		"Name": "husk",
+		"Description": "human wearing a rusted diving suit with stingers protruding from its broken helmet",
+		"Size": "small",
+		"Loot": "velonaceps calyx eggs"
+	},
+	"mudraptor_unarmored": {
+		"Name": "mudraptor",
+		"Description": "agile, bipedal, with an extremely sharp beak capable of breaching a submarine's hull, teal skin covered by many grey shells and tiny, almost vestigial hand-like appendages",
+		"Size": "small",
+		"Loot": "hydroxyapatite"
+	},
+	"mudraptor_veteran": {
+		"Name": "mudraptor",
+		"Description": "agile, bipedal, with an extremely sharp beak capable of breaching a submarine's hull, teal skin covered by many rust colored shells and tiny, almost vestigial hand-like appendages",
+		"Size": "small",
+		"Loot": "hydroxyapatite"
+	},
+	"hammerhead": {
+		"Name": "hammerhead",
+		"Description": "shark-like with two pairs of eyes, four claws, four fins, long tail, and a flat head that it uses to punch holes into submarines with hit-and-run style attacks",
+		"Size": "large",
+		"Loot": "swim bladder, alien blood"
+	},
+	"hammerheadgold": {
+		"Name": "golden hammerheard",
+		"Description": "gold color and shark-like with two pairs of eyes, four claws, four fins, long tail, and a flat head that it uses to punch holes into submarines with hit-and-run style attacks",
+		"Size": "large",
+		"Loot": "swim bladder, alien blood"
+	},
+	"bonethresher": {
+		"Name": "bone thresher",
+		"Description": "moray-like, featuring a rough, heavily armored body with a gaping maw, small lateral fins, large bone-like armor plates, no visible eyes, and a jaw brimming with razor-sharp teeth",
+		"Size": "large",
+		"Loot": "alien blood"
+	},
+	"fractalguardian": {
+		"Name": "fractal guardian",
+		"Description": "agile, alien-constructed mechanical eel with a glass-dome head and two weaponized arms",
+		"Size": "large",
+		"Loot": "alien circuitry"
+	},
+	"moloch": {
+		"Name": "moloch",
+		"Description": "slow with dark blue shell enveloping its core, which is a pulsating ballast sac for movement, complemented by three elongated tentacles above and a protective skirt of thin tendrils below",
+		"Size": "large",
+		"Loot": "hydroxyapatite, brockite"
+	},
+	"molochblack": {
+		"Name": "black moloch",
+		"Description": "slow with black shell enveloping its core, which is a pulsating ballast sac for movement, complemented by three elongated tentacles above and a protective skirt of thin tendrils below",
+		"Size": "large",
+		"Loot": "hydroxyapatite, brockite"
+	},
+	"crawlerbroodmother": {
+		"Name": "crawler broodmother",
+		"Description": "several red eyes, crown-like protrusions on its head, and a large stomach",
+		"Size": "large",
+		"Loot": "alien blood"
+	},
+	"spineling_giant": {
+		"Name": "spineling",
+		"Description": "agile, spindly, covered in a green moss-like substance with spines, capable of twisting on the spot to get the best shot with its plethora of natural harpoons",
+		"Size": "large",
+		"Loot": "alien blood, swim bladder"
+	},
+	"watcher": {
+		"Name": "watcher",
+		"Description": "turtle-like creature with a jet-black spherical body surrounded by thick armor and protective spikes, with a large vulnerable red eye",
+		"Size": "large",
+		"Loot": "sulphuric acid"
+	},
+	"hammerheadmatriarch": {
+		"Name": "hammerhead matriarch",
+		"Description": "dark red squid-like creature with four arms and a large, fragile sac of eggs on its head",
+		"Size": "giant",
+		"Loot": "alien blood, swim bladder"
+	},
+	"cyborgworm": {
+		"Name": "cyborgworm",
+		"Description": "fast serpent-like leviathan covered in a durable, stone-like armor shell augmented with metal plates and a mouth full of alien weapon turrets",
+		"Size": "large",
+		"Loot": "endworm shell fragment"
+	},
+	"latcher": {
+		"Name": "latcher",
+		"Description": "four-legged creature with many glowing eyes, maw full of teeth, and a tongue that can attach to and drag submarines",
+		"Size": "giant",
+		"Loot": "ballistic fiber"
+	},
+	"charybdis": {
+		"Name": "charybdis",
+		"Description": "fast moving large mass of dark tentacles with a head full of crimson red teeth and massive tongue",
+		"Size": "giant",
+		"Loot": ""
+	},
+	"endworm": {
+		"Name": "endworm",
+		"Description": "fast serpent-like leviathan covered in a durable, stone-like armor shell",
+		"Size": "colossal",
+		"Loot": "endworm shell fragment, alien power cell, physicorium bar, fulgurium chunk "
+	}
+}
