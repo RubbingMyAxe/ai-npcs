@@ -1,16 +1,19 @@
 AI_NPC = {}
 AI_NPC.Name = "AI NPCs"
-AI_NPC.Version = "0.6"
+AI_NPC.Version = "0.7"
 AI_NPC.Path = table.pack(...)[1]
 AI_NPC.Data = AI_NPC.Path .. "/Data"
 AI_NPC.ConfigPath = AI_NPC.Path .. "/config.json"
 AI_NPC.SaveData = AI_NPC.Path .. "/SaveData"
 AI_NPC.CmdPrefix = "ai_"
+-- Variable to hold all the mod's global variables to prevent conflicts with other mods.
+AI_NPC.Globals = {}
 
 -- Load configuration file.
 if not File.Exists(AI_NPC.ConfigPath) then
 	-- Create a new user config from the default script if there is no config file.
-	AI_NPC.Config, AI_NPC.ConfigDescription = dofile(AI_NPC.Path .. "/Lua/defaultconfig.lua")
+	AI_NPC.Config, AI_NPC.ConfigDescription, AI_NPC.ConfigType = dofile(AI_NPC.Path .. "/Lua/defaultconfig.lua")
+	AI_NPC.DefaultConfig = AI_NPC.Config
 	File.Write(AI_NPC.ConfigPath, json.serialize(AI_NPC.Config))
 else
 	-- Parse existing config file.
@@ -19,8 +22,10 @@ else
 		
 		AI_NPC.Config = info
 
-		local defaultConfig, defaultConfigDescription = dofile(AI_NPC.Path .. "/Lua/defaultconfig.lua")
+		local defaultConfig, defaultConfigDescription, defaultConfigType = dofile(AI_NPC.Path .. "/Lua/defaultconfig.lua")
+		AI_NPC.DefaultConfig = defaultConfig
 		AI_NPC.ConfigDescription = defaultConfigDescription;
+		AI_NPC.ConfigType = defaultConfigType;
 		
 		-- Add missing entries.
 		for key, value in pairs(defaultConfig) do
@@ -35,6 +40,7 @@ else
 		-- Create a new user config from the default script if existing file cannot be parsed.
 		print("‖color:gui.red‖Failed to parse existing configuration file. Rewriting with default values.‖end‖")
 		AI_NPC.Config, AI_NPC.ConfigDescription = dofile(AI_NPC.Path .. "/Lua/defaultconfig.lua")
+		AI_NPC.DefaultConfig = AI_NPC.Config
 		File.Write(AI_NPC.ConfigPath, json.serialize(AI_NPC.Config))
 	end
 end
@@ -45,7 +51,15 @@ dofile(AI_NPC.Path.."/Lua/AI_NPCs/Commands.lua")
 
 -- All other files only load if server or in singleplayer.
 if (Game.IsMultiplayer and SERVER) or Game.IsSingleplayer then
+	-- Utils usually needs to load first because it has the MakeErrorText function to color code errors in the console.
 	dofile(AI_NPC.Path.."/Lua/AI_NPCs/Utils.lua")
+	
+	-- Only supporting single player for the Options screen until networking can be added.
+	if Game.IsSingleplayer then
+		AI_NPC.MultiLineTextBox = dofile(AI_NPC.Path.."/Lua/AI_NPCs/MultiLineTextBox.lua")
+		dofile(AI_NPC.Path.."/Lua/AI_NPCs/OptionsScreen.lua")
+	end
+	
 	dofile(AI_NPC.Path.."/Lua/AI_NPCs/Missions.lua")
 	dofile(AI_NPC.Path.."/Lua/AI_NPCs/CharacterProfiles.lua")
 	dofile(AI_NPC.Path.."/Lua/AI_NPCs/Bestiary.lua")

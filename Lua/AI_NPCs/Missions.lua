@@ -5,8 +5,8 @@
 -- Lets this run if on the server-side, if it's multiplayer, doesn't let it run on the client, and if it's singleplayer, lets it run on the client.
 if CLIENT and Game.IsMultiplayer then return end
 
-MissionsFile = ""
-CurrentMissions = ""
+AI_NPC.Globals.MissionsFile = ""
+AI_NPC.Globals.CurrentMissions = ""
 
 -- Delete or replace problematic parts of mission descriptions.
 local function FixMissionText(input)
@@ -46,11 +46,11 @@ local function GetMissionSummaries(res)
 	local missions = GetAPIResponse(res)
 	
 	if string.len(missions) > 0 then
-		CurrentMissions = missions
+		AI_NPC.Globals.CurrentMissions = missions
 		
 		-- Write to file.
-		if File.DirectoryExists(CurrentSaveDirectory) then
-			File.Write(MissionsFile, CurrentMissions)
+		if File.DirectoryExists(AI_NPC.Globals.CurrentSaveDirectory) then
+			File.Write(AI_NPC.Globals.MissionsFile, AI_NPC.Globals.CurrentMissions)
 		end
 	end
 		
@@ -59,28 +59,28 @@ end
 -- Sends the current missions to the AI endpoint and requests a brief summary of them.
 -- If fromFile is true, attempts to load from MissionsFile if it exists.
 function LoadMissions(filename, fromFile)
-	MissionsFile = filename
+	AI_NPC.Globals.MissionsFile = filename
 
 	local UnfinishedMissions = GetMissionsList()
 
 	-- Default to the full mission text, incase there is a problem getting the summary.
-	CurrentMissions = table.concat(UnfinishedMissions, ", ")
+	AI_NPC.Globals.CurrentMissions = table.concat(UnfinishedMissions, ", ")
 
 	-- If there's only one mission, don't bother trying to get a summary or writing the file.
 	if #UnfinishedMissions > 1 then
 		
 		-- If file exists, load from file.
-		if fromFile and File.DirectoryExists(CurrentSaveDirectory) and File.Exists(MissionsFile) then
+		if fromFile and File.DirectoryExists(AI_NPC.Globals.CurrentSaveDirectory) and File.Exists(AI_NPC.Globals.MissionsFile) then
 			print("Reading missions from file.")
-			CurrentMissions = File.Read(MissionsFile)
-		else
+			AI_NPC.Globals.CurrentMissions = File.Read(AI_NPC.Globals.MissionsFile)
+		elseif ValidateAPISettings() then
 			local prompt_header = "Summarize these barotrauma missions, remove location names. One taciturn sentence each, avoid list structures: "
 				
 			local data = {
 				model = AI_NPC.Config.Model,
 				messages = {{
 					role = "user",
-					content = prompt_header .. CurrentMissions
+					content = prompt_header .. AI_NPC.Globals.CurrentMissions
 				}},
 				temperature = 0.5,
 				frequency_penalty = 0.4
@@ -92,8 +92,8 @@ function LoadMissions(filename, fromFile)
 		end
 	else
 		-- Delete missions file.
-		if File.DirectoryExists(CurrentSaveDirectory) and File.Exists(MissionsFile) then
-			File.Delete(MissionsFile)
+		if File.DirectoryExists(AI_NPC.Globals.CurrentSaveDirectory) and File.Exists(AI_NPC.Globals.MissionsFile) then
+			File.Delete(AI_NPC.Globals.MissionsFile)
 		end
 	end
 end

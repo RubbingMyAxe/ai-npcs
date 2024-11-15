@@ -26,7 +26,7 @@ if Game.IsSingleplayer then
 	-- Adds the commands to the list of valid commands.
 	-- Sets the function that is called client-side when the command is used. Also ads the command to help list and enables autofilling parameters.
 	Game.AddCommand(AI_NPC.CmdPrefix .. "setconfig", AI_NPC.CmdPrefix .. "setconfig [setting] [value]: Sets a value in the AI NPCs configuration file.", function(args) setConfig(args) end, configParameter)
-	Game.AddCommand(AI_NPC.CmdPrefix .. "getconfig", AI_NPC.CmdPrefix .. "getconfig [setting]: Gets a value from the AI NPCs configuration file.", function(args) getConfig(args[1]) end, configParameter)
+	Game.AddCommand(AI_NPC.CmdPrefix .. "getconfig", AI_NPC.CmdPrefix .. "getconfig [setting]: Gets a value from the AI NPCs configuration file.", function(args) getConfig(args) end, configParameter)
 	Game.AddCommand(AI_NPC.CmdPrefix .. "listconfig", AI_NPC.CmdPrefix .. "listconfig: Lists all of the values in the AI NPCs configuration file.", function(args) listConfig(args) end)
 	Game.AddCommand(AI_NPC.CmdPrefix .. "setprofile", AI_NPC.CmdPrefix .. "setprofile [character] [profile]: Sets the profile of a character.", function(args) setProfile(args) end, characterParameter)
 	Game.AddCommand(AI_NPC.CmdPrefix .. "getprofile", AI_NPC.CmdPrefix .. "getprofile [character]: Gets the profile of a character.", function(args) getProfile(args) end, characterParameter)
@@ -43,7 +43,7 @@ else
 	Game.AddCommand(AI_NPC.CmdPrefix .. "setprofile", AI_NPC.CmdPrefix .. "setprofile [character] [profile]: Sets the profile of a character.", nil, characterParameter)
 	Game.AddCommand(AI_NPC.CmdPrefix .. "getprofile", AI_NPC.CmdPrefix .. "getprofile [character]: Gets the profile of a character.", nil, characterParameter)
 	Game.AddCommand(AI_NPC.CmdPrefix .. "clearprofile", AI_NPC.CmdPrefix .. "clearprofile [character]: Clears the profile of a character.", nil, characterParameter)
-	Game.AddCommand(AI_NPC.CmdPrefix .. "setstyle", AI_NPC.CmdPrefix .. "setstyle [character] [style]: Sets the profile of a character.", nil, characterParameter)
+	Game.AddCommand(AI_NPC.CmdPrefix .. "setstyle", AI_NPC.CmdPrefix .. "setstyle [character] [style]: Sets the style of a character.", nil, characterParameter)
 	Game.AddCommand(AI_NPC.CmdPrefix .. "giverandomprofile", AI_NPC.CmdPrefix .. "giverandomprofile [character]: Gives the character a random profile.", nil, characterParameter)
 	Game.AddCommand(AI_NPC.CmdPrefix .. "clearconversationhistory", AI_NPC.CmdPrefix .. "clearconversationhistory [character]: Clears the conversation history of a character.", nil, characterParameter)
 end
@@ -66,7 +66,7 @@ if SERVER then
 		local HasManageSettingsPermission = client.HasPermission(ClientPermissions.ManageSettings)
 		
 		if HasManageSettingsPermission then
-			getconfig(args)
+			getConfig(args)
 		else
 			print(MakeErrorText("Client does not have permission to manage settings."))
 		end
@@ -148,24 +148,35 @@ if (Game.IsMultiplayer and SERVER) or Game.IsSingleplayer then
 
 	-- The local functions that actually perform the command action.
 	local function ModifyConfigSetting(setting, newvalue)
-
 		if AI_NPC.Config[setting] ~= nil then
-			local IsNumber = tonumber(newvalue)
-			if IsNumber then
-				-- If it's only numbers, convert it to a number.
-				AI_NPC.Config[setting] = IsNumber
-			-- If the string is "true" or "false", treat it as a boolean.	
-			elseif newvalue:lower() == "true" then
-				AI_NPC.Config[setting] = true
-			elseif newvalue:lower() == "false" then
-				AI_NPC.Config[setting] = false		
+			if not newvalue then
+				newvalue = ""
+			end
+		
+			if AI_NPC.ConfigType == "number" then
+				local IsNumber = tonumber(newvalue)
+				if IsNumber then
+					AI_NPC.Config[setting] = IsNumber
+				else
+					print(MakeErrorText(setting .. " requires a numerical value."))
+					return
+				end
+			elseif AI_NPC.ConfigType == "boolean" then
+				if newvalue:lower() == "true" then
+					AI_NPC.Config[setting] = true
+				elseif newvalue:lower() == "false" then
+					AI_NPC.Config[setting] = false
+				else
+					print(MakeErrorText(setting .. " requires a true or false value."))
+					return
+				end
 			else
 				-- Otherwise treat it as a string.
 				AI_NPC.Config[setting] = newvalue
 			end
 
 			File.Write(AI_NPC.ConfigPath, json.serialize(AI_NPC.Config))
-			print(setting .. " configuration setting has been set to " .. tostring(AI_NPC.Config[setting]))
+			print(setting .. " configuration setting has been set to: " .. tostring(AI_NPC.Config[setting]))
 			
 			if setting == "APIKey" then
 				if SERVER then
@@ -190,7 +201,7 @@ if (Game.IsMultiplayer and SERVER) or Game.IsSingleplayer then
 	local function ListConfigSettings()
 		for key, value in pairs(AI_NPC.Config) do
 			if AI_NPC.ConfigDescription[key] then
-				print("‖color:gui.orange‖" .. key .. " - " .. AI_NPC.ConfigDescription[key] .. "‖end‖")
+				print("‖color:gui.orange‖" .. key .. " - " .. AI_NPC.ConfigDescription[key]:gsub("\n", " ") .. "‖end‖")
 				print(key, ": " , tostring(value))
 			end
 		end
@@ -203,9 +214,9 @@ if (Game.IsMultiplayer and SERVER) or Game.IsSingleplayer then
 			return
 		end
 		
-		CharacterProfiles[character.Name].Description = str
+		AI_NPC.Globals.CharacterProfiles[character.Name].Description = str
 		-- Write this profile into the profiles file to preserve it.
-		File.Write(SavedCharactersFile, json.serialize(CharacterProfiles))
+		File.Write(AI_NPC.Globals.SavedCharactersFile, json.serialize(AI_NPC.Globals.CharacterProfiles))
 		print(character.Name .. " profile has been set to: " .. str)
 	end
 
@@ -217,13 +228,13 @@ if (Game.IsMultiplayer and SERVER) or Game.IsSingleplayer then
 		end
 		
 		local Profile = ""
-		if UniqueProfiles[character.Name] then
+		if AI_NPC.Globals.UniqueProfiles[character.Name] then
 			-- If it's a unique character's name.
-			Profile = UniqueProfiles[character.Name].Description
+			Profile = AI_NPC.Globals.UniqueProfiles[character.Name].Description
 			print(character.Name .. "'s Profile: " .. Profile)
 			return
-		elseif CharacterProfiles[character.Name] then
-			Profile = CharacterProfiles[character.Name].Description
+		elseif AI_NPC.Globals.CharacterProfiles[character.Name] then
+			Profile = AI_NPC.Globals.CharacterProfiles[character.Name].Description
 			print(character.Name .. "'s Profile: " .. Profile)
 			return
 		else
@@ -248,9 +259,9 @@ if (Game.IsMultiplayer and SERVER) or Game.IsSingleplayer then
 			return
 		end
 		
-		CharacterProfiles[character.Name].Style = str
+		AI_NPC.Globals.CharacterProfiles[character.Name].Style = str
 		-- Write this profile into the profiles file to preserve it.
-		File.Write(SavedCharactersFile, json.serialize(CharacterProfiles))
+		File.Write(AI_NPC.Globals.SavedCharactersFile, json.serialize(AI_NPC.Globals.CharacterProfiles))
 		print(character.Name .. " style has been set to: " .. str)
 	end
 
@@ -263,17 +274,17 @@ if (Game.IsMultiplayer and SERVER) or Game.IsSingleplayer then
 
 		AssignProfile(character, true)
 		
-		if CharacterProfiles[character.Name] then
+		if AI_NPC.Globals.CharacterProfiles[character.Name] then
 			print(character.Name .. " profile has been set.")
-			print("Description: " .. CharacterProfiles[character.Name].Description)
-			print("Style: " .. CharacterProfiles[character.Name].Style)
+			print("Description: " .. AI_NPC.Globals.CharacterProfiles[character.Name].Description)
+			print("Style: " .. AI_NPC.Globals.CharacterProfiles[character.Name].Style)
 		else
 			print(MakeErrorText("Character profile not set."))
 		end
 	end
 
 	local function ClearConversationHistory(character)
-		local filename = string.format("%s/%s.txt", CurrentSaveDirectory, character.Name)
+		local filename = string.format("%s/%s.txt", AI_NPC.Globals.CurrentSaveDirectory, character.Name)
 		if File.Exists(filename) then
 			File.Delete(filename)
 			print(character.Name .. "'s conversation history has been deleted.")
@@ -284,7 +295,7 @@ if (Game.IsMultiplayer and SERVER) or Game.IsSingleplayer then
 
 	-- The global functions that validate the argument list and call the local functions.
 	function setConfig(args)
-		if args and args[1] and args[2] then
+		if args and args[1] then
 			ModifyConfigSetting(args[1], args[2])
 		else
 			print(MakeErrorText("Invalid argument list. Usage: " .. AI_NPC.CmdPrefix .. "setconfig [setting] [value]"))
@@ -304,13 +315,17 @@ if (Game.IsMultiplayer and SERVER) or Game.IsSingleplayer then
 	end
 
 	function setProfile(args)
-		if not args or not args[1] or not args[2] then
+		if not args or not args[1] then
 			print(MakeErrorText("Invalid argument list. Usage: " .. AI_NPC.CmdPrefix .. "setprofile [character] [profile]"))
 			return
 		end
 		
 		local targetname = string.lower(RemoveQuotes(args[1]))
-		local profile = TrimLeadingWhitespace(table.concat(args, " ", 2))
+		
+		local profile = ""
+		if args[2] then
+			profile = TrimLeadingWhitespace(table.concat(args, " ", 2))
+		end
 		
 		local character = FindValidCharacter(targetname, false)
 		if character then
@@ -351,13 +366,17 @@ if (Game.IsMultiplayer and SERVER) or Game.IsSingleplayer then
 	end
 	
 	function setStyle(args)
-		if not args or not args[1] or not args[2] then
+		if not args or not args[1] then
 			print(MakeErrorText("Invalid argument list. Usage: " .. AI_NPC.CmdPrefix .. "setstyle [character] [style]"))
 			return
 		end
 		
 		local targetname = string.lower(RemoveQuotes(args[1]))
-		local style = TrimLeadingWhitespace(table.concat(args, " ", 2))
+		
+		local style = ""
+		if args[2] then
+			style = TrimLeadingWhitespace(table.concat(args, " ", 2))
+		end
 		
 		local character = FindValidCharacter(targetname, false)
 		if character then

@@ -5,14 +5,15 @@
 -- Lets this run if on the server-side, if it's multiplayer, doesn't let it run on the client, and if it's singleplayer, lets it run on the client.
 if CLIENT and Game.IsMultiplayer then return end
 
-SavedCharactersFile = ""
-CharacterProfiles = {}
+AI_NPC.Globals.SavedCharactersFile = ""
+AI_NPC.Globals.CharacterProfiles = {}
 
+--TODO: Possibly add map seed for non-crew and non-special NPCs.
 if AI_NPC.Config.UseCharacterProfiles then 
 
 	-- Load the pre-generated NPC profiles.
 	local Profiles = json.parse(File.Read(AI_NPC.Data .. "/CharacterProfiles.json"))
-	UniqueProfiles = json.parse(File.Read(AI_NPC.Data .. "/UniqueCharacterProfiles.json"))
+	AI_NPC.Globals.UniqueProfiles = json.parse(File.Read(AI_NPC.Data .. "/UniqueCharacterProfiles.json"))
 
 	-- Gets a random selection of styles from the list, up to the limit.
 	local function GetRandomStyle(list, minimum, limit)
@@ -47,15 +48,21 @@ if AI_NPC.Config.UseCharacterProfiles then
 		
 		local rand = math.random(1, 100)
 		
+		 -- 15% chance to use "any" profiles.
+		local UseAnyProfiles = (math.random(1, 100) <= 15)
+		
 		-- Get all of the profiles that match the role/personality.
 		local matchingProfiles = {}
 		for _, data in ipairs(Profiles) do
 			if data.Personality == personality and data.Role == role then
 				table.insert(matchingProfiles, data)
+			-- Add applicable "any" profiles.
+			elseif UseAnyProfiles and (data.Personality == personality or data.Personality == "any") and (data.Role == role or data.Role == "any") then
+				table.insert(matchingProfiles, data)
 			end
 		end
 		
-		-- Broken English really needs a style to work properly.
+		-- Broken English needs a style to work properly.
 		local minimum_styles = 0
 		if personality == "broken english" then
 			minimum_styles = 1
@@ -82,7 +89,6 @@ if AI_NPC.Config.UseCharacterProfiles then
 				return "", ""
 			else
 				local selected_profile = math.random(1, #matchingProfiles)
-				print(matchingProfiles[selected_profile].Style)
 				return matchingProfiles[selected_profile].Description, GetRandomStyle(matchingProfiles[selected_profile].Style, minimum_styles, 3)
 			end
 		else
@@ -96,14 +102,15 @@ if AI_NPC.Config.UseCharacterProfiles then
 	function AssignProfile(character, guaranteed)
 		if not character.Info.PersonalityTrait or not character.Info.PersonalityTrait.DisplayName then
 			
-			CharacterProfiles[character.Name] =
+			AI_NPC.Globals.CharacterProfiles[character.Name] =
 			{
 				["Description"] = "",
-				["Style"] = "" 
+				["Style"] = ""
+				--["MapSeed"] = ""
 			}
 			
 			-- Write this profile into the SavedCharactersFile to preserve it.
-			File.Write(SavedCharactersFile, json.serialize(CharacterProfiles))
+			File.Write(AI_NPC.Globals.SavedCharactersFile, json.serialize(AI_NPC.Globals.CharacterProfiles))
 			return
 		end
 		
@@ -160,16 +167,26 @@ if AI_NPC.Config.UseCharacterProfiles then
 			end
 		end
 
+		-- TODO: Experimental code for saving character with map seed.
+		--[[local map_seed = ""
+		-- If it's a random non-special NPC, save the map seed.
+		if CLIENT or Game.ServerSettings.GameModeIdentifier == "multiplayercampaign" then
+			if not character.IsOnPlayerTeam and not UniqueProfiles[character.Name] then
+				map_seed = Game.GameSession.GameMode.Map.Seed
+			end
+		end]]--
+
 		local personality = string.lower(character.Info.PersonalityTrait.DisplayName.Value)
 		local profile, style = GetRandomProfile(personality, string.lower(role), character.IsOnPlayerTeam, guaranteed)
 
-		CharacterProfiles[character.Name] =
+		AI_NPC.Globals.CharacterProfiles[character.Name] =
 		{
 			["Description"] = profile,
-			["Style"] = style 
+			["Style"] = style
+			--["MapSeed"] = map_seed
 		}
 		
 		-- Write this profile into the SavedCharactersFile to preserve it.
-		File.Write(SavedCharactersFile, json.serialize(CharacterProfiles))
+		File.Write(AI_NPC.Globals.SavedCharactersFile, json.serialize(AI_NPC.Globals.CharacterProfiles))
 	end
 end
