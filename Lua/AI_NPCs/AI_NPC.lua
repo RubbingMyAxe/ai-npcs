@@ -11,17 +11,23 @@ LuaUserData.RegisterType("Barotrauma.NPCPersonalityTrait")
 LuaUserData.RegisterType("Barotrauma.HumanPrefab")
 -- Make private field prevAiChatMessages accessible to help regulate NPC speach.
 LuaUserData.MakeFieldAccessible(Descriptors["Barotrauma.AICharacter"], "prevAiChatMessages")
+
 -- For accessing conversation data and blocking random conversations.
 LuaUserData.MakeMethodAccessible(Descriptors["Barotrauma.CrewManager"], "CreateRandomConversation")
 -- Attempted to do it through Lua, but I could not get access to the methods to clear/modify the conversation.
 --LuaUserData.MakeFieldAccessible(Descriptors["Barotrauma.CrewManager"], "pendingConversationLines")
 
---TODO: Put globals in AI_NPC namespace.
-CurrentSaveDirectory = ""
+-- For overriding character issues speach like "Help! I am bleeding!".
+LuaUserData.MakeMethodAccessible(Descriptors["Barotrauma.HumanAIController"], "SpeakAboutIssues")
+
+--LuaUserData.MakeFieldAccessible(Descriptors["Barotrauma.Location"], "loadedMissions")
+
+--TODO: Put more globals in AI_NPC namespace.
+AI_NPC.Globals.CurrentSaveDirectory = ""
 
 -- Table to store data about when each character last spoke through AI.
 local CharacterSpeechInfo = {}
-LastSpeech = 0.0
+local LastSpeech = 0.0
 
 -- Variable to keep track of token usage.
 -- Resets when LUA is reloaded.
@@ -34,23 +40,23 @@ if Game.GameSession then
 
 	if CLIENT or Game.ServerSettings.GameModeIdentifier == "multiplayercampaign" then
 		PrintDebugInfo("Reloaded campaign mid-session: " .. Game.GameSession.GameMode.Map.Seed)
-		CurrentSaveDirectory = AI_NPC.SaveData .. "/" .. Game.GameSession.GameMode.Map.Seed
+		AI_NPC.Globals.CurrentSaveDirectory = AI_NPC.SaveData .. "/" .. Game.GameSession.GameMode.Map.Seed
 	else
 		PrintDebugInfo("Reloaded other multiplayer match mid-session: " .. Game.ServerSettings.GameModeIdentifier.ToString() .. ", " .. Game.GameSession.Level.Seed)
-		CurrentSaveDirectory = AI_NPC.SaveData .. "/" .. Game.GameSession.Level.Seed
+		AI_NPC.Globals.CurrentSaveDirectory = AI_NPC.SaveData .. "/" .. Game.GameSession.Level.Seed
 	end
 	
-	SavedCharactersFile = CurrentSaveDirectory .. "/SavedCharacters.json"
-	if File.DirectoryExists(CurrentSaveDirectory) then
+	AI_NPC.Globals.SavedCharactersFile = AI_NPC.Globals.CurrentSaveDirectory .. "/SavedCharacters.json"
+	if File.DirectoryExists(AI_NPC.Globals.CurrentSaveDirectory) then
 		-- If there is an existing profiles file, load it.
-		if AI_NPC.Config.UseCharacterProfiles and File.Exists(SavedCharactersFile) then
-			CharacterProfiles = json.parse(File.Read(SavedCharactersFile))
+		if AI_NPC.Config.UseCharacterProfiles and File.Exists(AI_NPC.Globals.SavedCharactersFile) then
+			AI_NPC.Globals.CharacterProfiles = json.parse(File.Read(AI_NPC.Globals.SavedCharactersFile))
 		end
 	else
-		File.CreateDirectory(CurrentSaveDirectory)
+		File.CreateDirectory(AI_NPC.Globals.CurrentSaveDirectory)
 	end
 	
-	LoadMissions(CurrentSaveDirectory .. "/Missions.txt", true)
+	LoadMissions(AI_NPC.Globals.CurrentSaveDirectory .. "/Missions.txt", true)
 end
 
 -- Loading data if it's campaign and previous data exists.
@@ -59,24 +65,24 @@ Hook.Add("roundStart", "LoadNPCData", function()
 
 	if CLIENT or Game.ServerSettings.GameModeIdentifier == "multiplayercampaign" then
 		PrintDebugInfo("Loaded campaign: " .. Game.GameSession.GameMode.Map.Seed)
-		CurrentSaveDirectory = AI_NPC.SaveData .. "/" .. Game.GameSession.GameMode.Map.Seed
+		AI_NPC.Globals.CurrentSaveDirectory = AI_NPC.SaveData .. "/" .. Game.GameSession.GameMode.Map.Seed
 	else
 		PrintDebugInfo("Loaded other multiplayer match: " .. Game.ServerSettings.GameModeIdentifier.ToString() .. ", " .. Game.GameSession.Level.Seed)
-		CurrentSaveDirectory = AI_NPC.SaveData .. "/" .. Game.GameSession.Level.Seed
+		AI_NPC.Globals.CurrentSaveDirectory = AI_NPC.SaveData .. "/" .. Game.GameSession.Level.Seed
 	end
 	
-	SavedCharactersFile = CurrentSaveDirectory .. "/SavedCharacters.json"
+	AI_NPC.Globals.SavedCharactersFile = AI_NPC.Globals.CurrentSaveDirectory .. "/SavedCharacters.json"
 	
-	if File.DirectoryExists(CurrentSaveDirectory) then
+	if File.DirectoryExists(AI_NPC.Globals.CurrentSaveDirectory) then
 		-- If there is an existing profiles file, load it.
-		if AI_NPC.Config.UseCharacterProfiles and File.Exists(SavedCharactersFile) then
-			CharacterProfiles = json.parse(File.Read(SavedCharactersFile))
+		if AI_NPC.Config.UseCharacterProfiles and File.Exists(AI_NPC.Globals.SavedCharactersFile) then
+			AI_NPC.Globals.CharacterProfiles = json.parse(File.Read(AI_NPC.Globals.SavedCharactersFile))
 		end
 	else
-		File.CreateDirectory(CurrentSaveDirectory)
+		File.CreateDirectory(AI_NPC.Globals.CurrentSaveDirectory)
 	end	
 	
-	LoadMissions(CurrentSaveDirectory .. "/Missions.txt", false)
+	LoadMissions(AI_NPC.Globals.CurrentSaveDirectory .. "/Missions.txt", false)
 end)
 
 -- Cleaning up on round end.
@@ -87,21 +93,21 @@ Hook.Add("roundEnd", "DeleteNPCData", function()
 		PrintDebugInfo("Ended campaign: " .. Game.GameSession.GameMode.Map.Seed)
 		
 		-- Delete missions file.
-		if File.DirectoryExists(CurrentSaveDirectory) and File.Exists(MissionsFile) then
-			File.Delete(MissionsFile)
+		if File.DirectoryExists(AI_NPC.Globals.CurrentSaveDirectory) and File.Exists(AI_NPC.Globals.MissionsFile) then
+			File.Delete(AI_NPC.Globals.MissionsFile)
 		end
 	else
 		-- If was a temporary game mode, delete entire directory.
 		PrintDebugInfo("Ended other multiplayer match: " .. Game.ServerSettings.GameModeIdentifier.ToString() .. ", " .. Game.GameSession.Level.Seed)
-		if File.DirectoryExists(CurrentSaveDirectory) then
-			File.DeleteDirectory(CurrentSaveDirectory)
+		if File.DirectoryExists(AI_NPC.Globals.CurrentSaveDirectory) then
+			File.DeleteDirectory(AI_NPC.Globals.CurrentSaveDirectory)
 		end
 	end
 end)
 
 -- Runs player input through OpenAI's moderation API first to check that it will not be flagged for violating OpenAI's usage policies.
 -- Only used if endpoint is set to OpenAI and the Moderation configuration setting is enabled.
-local function ModerateInput(data, source, msg, character)
+local function ModerateInput(data, source, msg, character, chatType)
 
 	local input = {input = msg}
 	local JSONinput = json.serialize(input)
@@ -125,7 +131,7 @@ local function ModerateInput(data, source, msg, character)
 			local savePath = AI_NPC.Path .. "/HTTP_Response.txt" -- Save HTTP response to a file for debugging purposes.
 			-- Send the prompt to API and process the output in MakeCharacterSpeak.
 			CharacterSpeechInfo[character.Name].IsSpeaking = true
-			Networking.HttpPost(AI_NPC.Config.APIEndpoint, function(res) MakeCharacterSpeak(source, msg, character, res, nil, 0.0) end, data, "application/json", { ["Authorization"] = "Bearer " .. AI_NPC.Config.APIKey }, savePath)
+			Networking.HttpPost(AI_NPC.Config.APIEndpoint, function(res) MakeCharacterSpeak(source, msg, character, res, "ai_dialogaffirmative", 0.0, chatType, true) end, data, "application/json", { ["Authorization"] = "Bearer " .. AI_NPC.Config.APIKey }, savePath)
 		else
 			local flags = {}
 			for key, val in pairs(info["results"][1].categories) do
@@ -208,36 +214,106 @@ local function SanitizeNPCSpeach(character, str)
 	return message
 end
 
---TODO: Add more ignored identifiers.
---TODO: Maybe combine with GetAdjustedNPCSpeach() and add a probability return value?
-local function IsIgnoredSpeach(identifier)
-	-- Used for this script's AI messages. Ignore these.
-	if string.find(identifier, "dialogaffirmative") then
+local function IsCharacterStatusDialogueIdentifier(identifier)
+	if string.find(identifier, "CharacterIssues") then
 		return true
-	end
-
-	-- Used when an NPC can't get somewhere.
-	-- Example: "Can't get there!"
-	if string.find(identifier, "dialogcannotreachplace") then
+	elseif string.find(identifier, "DialogLowOxygen") then
 		return true
-	end
-
-	if string.find(identifier, "getdivinggear") then
+	elseif string.find(identifier, "DialogBleeding") then
 		return true
-	end
-
-	-- Spammed when NPC is firing a turret.
-	-- Example: "Firing!"
-	if string.find(identifier, "fireturret") then
+	elseif string.find(identifier, "DialogInsufficientPressureProtection") then
 		return true
+	elseif string.find(identifier, "DialogPressure") then
+		return true
+	else
+		return false
 	end
-
-	return false
 end
+
+Hook.Patch("Barotrauma.HumanAIController", "SpeakAboutIssues", function(instance, ptable)
+	
+	if AI_NPC.Config.UseForCharacterIssues == "off" then
+		-- Use the vanilla SpeakAboutIssues function.
+		ptable.PreventExecution = false
+		return
+	elseif AI_NPC.Config.UseForCharacterIssues == "full" then
+		-- Always use this patch.
+		ptable.PreventExecution = true
+	elseif AI_NPC.Config.UseForCharacterIssues == "mixed" then
+		-- Use has a chance to use this patch, based on ChanceForNPCSpeech configuration setting.
+		if math.random(1, 100) <= AI_NPC.Config.ChanceForNPCSpeach then
+			ptable.PreventExecution = true
+		else
+			ptable.PreventExecution = false
+			return
+		end	
+	else
+		-- Use the vanilla SpeakAboutIssues function.
+		ptable.PreventExecution = false
+		return
+	end
+
+	
+	local character = instance.Character
+	
+	if not character.IsOnPlayerTeam then
+		return
+	end
+	
+	if character.SpeechImpediment >= 100 then
+		return
+	end
+	
+	-- Use radio if character has a radio.
+	local chatType = ChatMessageType.Default
+	if character.Inventory.GetItemInLimbSlot(InvSlotType.Headset) then
+		chatType = ChatMessageType.Radio
+	end
+	
+	local message = "I need help! "
+	local SayMessage = false
+	-- TODO: Combine all of these into one message.
+
+	-- DialogLowOxygen
+	if character.Oxygen < CharacterHealth.InsufficientOxygenThreshold then
+		message = message .. "I am having trouble breathing because of a lack of oxygen. "
+		SayMessage = true
+	end
+	
+	-- DialogBleeding
+	local bleedingPrefab = AfflictionPrefab.Prefabs["bleeding"]
+	if character.Bleeding > bleedingPrefab.TreatmentThreshold and not character.IsMedic then
+		message = message .. "I need help, I am bleeding!"
+		SayMessage = true
+	end
+	
+	if (character.CurrentHull == nil or character.CurrentHull.LethalPressure > 0) and not character.IsProtectedFromPressure then
+		-- DialogInsufficientPressureProtection
+		if character.PressureProtection > 0 then
+			message = message .. "My diving suit can't handle this pressure!"
+			SayMessage = true
+		-- DialogPressure
+		elseif character.CurrentHull then
+			message = message .. "The room I am in, " .. character.CurrentHull.DisplayName.Value .. ", has dangerously high pressure!"
+			SayMessage = true
+		end
+	end
+	
+	if SayMessage then
+		character.Speak(message, chatType, 0.0, "CharacterIssues", 60.0)
+	end
+	
+end, Hook.HookMethodType.Before)
 
 -- Some vanilla speech is very vague and does not generate good results with AI.
 -- For example: "Target down!" and "I think I got it!"
-local function GetAdjustedNPCSpeach(msg, identifier, character)
+-- This function adjusts it if possible.
+-- Returns:
+-- 1. A probability that it should be ran through AI. 80 = 80% chance.
+-- 2. How long the character should wait before trying to say this message again. 60.0 = 60 seconds until the character tries to say this again.
+-- 3. The adjusted message.
+-- 4. Extra information to pass into the prompt.
+local function GetAdjustedNPCSpeach(msg, identifier, delay, character)
 
 	-- killedtarget + ID
 	-- Used when the NPC kills a target.
@@ -245,7 +321,7 @@ local function GetAdjustedNPCSpeach(msg, identifier, character)
 	if string.find(identifier, "killedtarget") then
 		-- Remove the killedtarget from the string to get the ID.
 		local targetID = identifier:gsub("killedtarget", "")
-		-- Conver the ID to a number, then use it to find the character.
+		-- Convert the ID to a number, then use it to find the character.
 		targetID = tonumber(targetID)
 		if targetID then
 			local target = Entity.FindEntityByID(targetID)
@@ -256,7 +332,13 @@ local function GetAdjustedNPCSpeach(msg, identifier, character)
 					local message = ""
 					local extrainfo = ""
 					
-					local bestiaryinfo = Bestiary[string.lower(target.SpeciesName.Value)]
+					local bestiaryinfo = AI_NPC.Globals.Bestiary[string.lower(target.SpeciesName.Value)]
+					-- If it's a variant not found in the bestiary, get the base species name.
+					if bestiaryinfo == nil then
+						local basespecies = target.GetBaseCharacterSpeciesName().Value
+						bestiaryinfo = AI_NPC.Globals.Bestiary[string.lower(basespecies)]
+					end
+					
 					if bestiaryinfo then
 						-- TODO: Experimental, if it is a creature let's include some information about that creature in the prompt.
 						message = "I just killed a " .. bestiaryinfo.Name .. "!"
@@ -265,10 +347,25 @@ local function GetAdjustedNPCSpeach(msg, identifier, character)
 						message = "I just killed a " .. target.SpeciesName.Value .. "!"
 					end
 
-					return message, extrainfo
+					return 100, 20.0, message, extrainfo
 				end
 			end
 		end
+	end
+	
+	if string.find(identifier, "CharacterIssues") then
+		--[[local bleedingPrefab = AfflictionPrefab.Prefabs["bleeding"]
+
+		local message = ""
+		--if not character.IsMedic then
+		if character.Bleeding > bleedingPrefab.TreatmentThreshold then
+			print("Custom SpeakAboutIssues")
+			message = "I need help, I am bleeding!"
+			return 100, 10.0, message, ""
+		end
+		--end
+		return 0]]--
+		return 100, delay, msg, ""
 	end
 	
 	-- Used when a target is spotted.
@@ -292,16 +389,58 @@ local function GetAdjustedNPCSpeach(msg, identifier, character)
 	
 	-- Used when ice spire is spotted.
 	if string.find(identifier, "icespirespotted") then
-		return "I have spotted an ice spire, I will shoot it if we get any closer!", ""
+		return 100, 60.0, "I have spotted an ice spire, I will shoot it if we get any closer!", ""
 	end
 	
 	-- leaksfixed doesn't need any changes.
 	-- Example: "All leaks repaired in [roomname]!"
 	if string.find(identifier, "leakfixed") then
-		return msg, ""
+		return 100, 20.0, msg, ""
 	end
 	
-	return msg, ""
+	-- Identifiers that should always be ignored go below here.
+	-- They only return 0 because they are being ignored, the other values don't matter.
+	
+	-- Used for this script's AI messages. Ignore these.
+	if string.find(identifier, "dialogaffirmative") then
+		return 0
+	end
+
+	-- Used when an NPC can't get somewhere.
+	-- Example: "Can't get there!"
+	if string.find(identifier, "dialogcannotreachplace") then
+		return 0
+	end
+
+	if string.find(identifier, "getdivinggear") then
+		return 0
+	end
+
+	-- Spammed when NPC is firing a turret.
+	-- Example: "Firing!"
+	if string.find(identifier, "fireturret") then
+		return 0
+	end
+	
+	-- Handling all of these in SpeakAboutIssues patch.
+	if string.find(identifier, "DialogLowOxygen") then
+		return 0
+	end
+	
+	if string.find(identifier, "DialogBleeding") then
+		return 0
+	end
+	
+	if string.find(identifier, "DialogInsufficientPressureProtection") then
+		return 0
+	end
+	
+	if string.find(identifier, "DialogPressure") then
+		return 0
+	end
+	
+	-- All other messages.
+	return 100, 60.0, msg, ""
 end
 
 -- Tell the character what language it speaks.
@@ -315,9 +454,14 @@ local function BuildLanguagePrompt(character)
 	return LanguagePrompt
 end
 
+-- Tell the character the custom instructions.
+local function BuildCustomInstructionsPrompt()
+	return EscapeQuotes(AI_NPC.Config.CustomInstructions)
+end
+
 -- Tell the character about itself.
 local function BuildDemographicsPrompt(character)
-	local DemographicsPrompt = "Embody the character of <NPC_NAME>, a<PERSONALITY> <GENDER> <SKILL> <ROLE> <SUBMARINE> in a region called <REGION>.<BROKEN_ENGLISH>"
+	local DemographicsPrompt = "Embody the character of <NPC_NAME>, a <PERSONALITY> <GENDER> <ROLE><SKILL>, <SUBMARINE> in a region called <REGION>. <BROKEN_ENGLISH>"
 
 	-- Tell the character its name.
 	DemographicsPrompt = DemographicsPrompt:gsub("<NPC_NAME>", character.Name)
@@ -367,10 +511,10 @@ local function BuildDemographicsPrompt(character)
 		if character.Info.Job.PrimarySkill then
 			local skillLevel = character.GetSkillLevel(character.Info.Job.PrimarySkill.Identifier)
 
-			local skillLevels = {"frighteningly incompetent", "mediocre", "unremarkable", "expert", "legendary"}
+			local skillLevels = {"novice", "mediocre", "average", "expert", "legendary"}
 			local skill = skillLevels[math.floor(skillLevel / 25) + 1] or "novice"
 			
-			DemographicsPrompt = DemographicsPrompt:gsub("<SKILL>", skill)
+			DemographicsPrompt = DemographicsPrompt:gsub("<SKILL>", " of " .. skill .. " skill")
 		else
 			DemographicsPrompt = DemographicsPrompt:gsub("<SKILL>", "")
 		end
@@ -396,15 +540,15 @@ local function BuildDemographicsPrompt(character)
 	DemographicsPrompt = DemographicsPrompt:gsub("<ROLE>", role)
 	
 	-- Tell the character the name of their submarine.
-	SubmarinePrompt = ""	
-	character_submarine = nil
+	local SubmarinePrompt = ""	
+	local character_submarine = nil
 	for submarine in Submarine.Loaded do
 		if submarine.TeamID == character.TeamID then
 			character_submarine = submarine
 			break;
 		end
 	end
-	
+
 	if character_submarine and character_submarine.Info then
 		if character.IsPrisoner then
 			SubmarinePrompt = "imprisoned and being transported to " .. character_submarine.Info.Name
@@ -419,6 +563,8 @@ local function BuildDemographicsPrompt(character)
 				if string.len(character.Info.Title.Value) > 0 then
 					-- Merchants, HR Manager, etc.
 					SubmarinePrompt = "serving as the " .. character.Info.Title.Value .. " on an outpost named " .. character_submarine.Info.Name
+				elseif character.HumanPrefab.SpawnPointTags == "admin" then
+					SubmarinePrompt = "serving as the administrator of an outpost named " .. character_submarine.Info.Name
 				else
 					if role == "civilian" then
 						SubmarinePrompt = "living on an outpost named " .. character_submarine.Info.Name
@@ -456,7 +602,7 @@ local function BuildDemographicsPrompt(character)
 		-- Just putting "broken english" into the prompt doesn't work, have to expand on it more.
 		if personality == "broken english" then
 			if AI_NPC.Config.UseCharacterProfiles then
-				local Profile = UniqueProfiles[character.Name] or CharacterProfiles[character.Name]
+				local Profile = AI_NPC.Globals.UniqueProfiles[character.Name] or AI_NPC.Globals.CharacterProfiles[character.Name]
 
 				-- If we're using profiles and the character doesn't have one with a style, use a default style.
 				if not Profile or #Profile.Style == 0 then
@@ -487,17 +633,29 @@ local function BuildCharacterProfilePrompt(character)
 	
 	if AI_NPC.Config.UseCharacterProfiles then
 	
-		if UniqueProfiles[character.Name] then
+		if AI_NPC.Globals.UniqueProfiles[character.Name] then
 			-- If it's a unique character's name, use their profile.
-			CharacterProfile = ShallowCopyTable(UniqueProfiles[character.Name])
+			CharacterProfile = ShallowCopyTable(AI_NPC.Globals.UniqueProfiles[character.Name])
 			CharacterProfile.Style = table.concat(CharacterProfile.Style, ", ")
-		elseif CharacterProfiles[character.Name] then
-			-- If we already have a profile, use that.
-			CharacterProfile = CharacterProfiles[character.Name]
-		else
-			-- Haven't attempted to get a profile yet, try to get one.
+		elseif AI_NPC.Globals.CharacterProfiles[character.Name] then
+			CharacterProfile = AI_NPC.Globals.CharacterProfiles[character.Name]
+			
+			-- TODO: Experimental code for saving character with map seed.
+			--[[-- If it's singleplayer or a multiplayer campaign, we need to check if the profile's map seed matches for non-crew and non-unique NPCs.
+			if CLIENT or Game.ServerSettings.GameModeIdentifier == "multiplayercampaign" then
+				if character.IsOnPlayerTeam or UniqueProfiles[character.Name] or CharacterProfiles[character.Name].MapSeed = Game.GameSession.GameMode.Map.Seed then
+					-- Character is on the player's team, a unique character, or the profile has a matching map seed.
+					CharacterProfile = CharacterProfiles[character.Name]
+				end
+			else
+				CharacterProfile = CharacterProfiles[character.Name]
+			end]]--
+		end
+			
+		-- No profile for this character, create one.
+		if not CharacterProfile then		
 			AssignProfile(character, false)
-			CharacterProfile = CharacterProfiles[character.Name]
+			CharacterProfile = AI_NPC.Globals.CharacterProfiles[character.Name]
 		end
 	end
 	
@@ -513,7 +671,7 @@ local function BuildCharacterProfilePrompt(character)
 	return CharacterProfilePrompt
 end
 
-local function GetOutpostInfo(location, default)
+local function GetOutpostInfo(location, default)	
 	if not location or not location.Faction then
 		return default
 	end
@@ -525,23 +683,20 @@ end
 -- Tell the character information about where they are.
 local function BuildLocationPrompt(character)
 	local LocationPrompt = ""
-	
+
 	-- Get the submarine (or outpost) associated with this character.
-	character_submarine = nil
+	local character_submarine = nil
 	for submarine in Submarine.Loaded do
 		if submarine.TeamID == character.TeamID then
 			character_submarine = submarine
 		end
 	end
 	
+	-- TODO: Test unnamed hulls...
 	if character_submarine and character_submarine == character.Submarine then
 		-- If the character is on their own submarine, just get the room information.
 		if character.CurrentHull then
-			-- TODO: Currently all rooms on outposts are named "Upper aft side", so just ignore these until this bug is fixed.
-			-- Rooms on outposts with items like reactors and airlocks still work.
-			if character.Submarine.Info.IsOutpost and character.CurrentHull.DisplayName.Value ~= "Upper aft side" then
-				LocationPrompt = "You are currently in the " .. string.lower(character.CurrentHull.DisplayName.Value) .. "."
-			end
+			LocationPrompt = "You are currently in the " .. string.lower(character.CurrentHull.DisplayName.Value) .. "."
 		end
 	elseif character.Submarine and character.Submarine.Info then
 		-- If the character is not on their own submarine...
@@ -564,11 +719,7 @@ local function BuildLocationPrompt(character)
 		-- If there is a hull, get the name of that area.
 		local room = ""
 		if character.CurrentHull then
-			-- TODO: Currently all rooms on outposts are named "Upper aft side", so just ignore these until this bug is fixed.
-			-- Rooms on outposts with items like reactors and airlocks still work.
-			if character.Submarine.Info.IsOutpost and character.CurrentHull.DisplayName.Value ~= "Upper aft side" then
-				room = " in the " .. string.lower(character.CurrentHull.DisplayName.Value)
-			end
+			room = " in the " .. string.lower(character.CurrentHull.DisplayName.Value)
 		end
 		
 		LocationPrompt = "You are currently " .. submarine .. room .. "."
@@ -630,7 +781,7 @@ local function BuildInventoryPrompt(character)
 	local OuterClothing = character.Inventory.GetItemInLimbSlot(InvSlotType.OuterClothes)
 	if OuterClothing then
 		if string.lower(OuterClothing.Name) == "exosuit" then
-			ClothingPrompt = ClothingPrompt .. "You are wearing a large, heavy, well-armored, nuclear powered, mechanical exosuit."
+			ClothingPrompt = ClothingPrompt .. "You are wearing a large, bulky, heavy, well-armored, nuclear powered, mechanical exosuit."
 		else
 			ClothingPrompt = ClothingPrompt .. "You are wearing " .. OuterClothing.Name .. "."
 		end
@@ -656,46 +807,69 @@ local function BuildOrdersPrompt(character)
 	if #important_orders > 0 then	
 		 OrdersPrompt = "Your current orders in order of priority are: " .. table.concat(important_orders, ", ") .. "."
 	end
+	
+	-- Tell the character if they are sitting or laying down.
+	local CurrentActionsPrompt = ""
+	if character.SelectedSecondaryItem then
+		local secondaryName = string.lower(character.SelectedSecondaryItem.Name)
+	
+		local action = nil
+		if string.find(secondaryName, "chair") then
+			action = "sitting"
+		elseif string.find(secondaryName, "bed") or string.find(secondaryName, "bunk") then
+			action = "laying down"
+		end
+		
+		if action then
+			local actionText = "You are " .. action .. " in a " .. secondaryName .. ". "
+			CurrentActionsPrompt = CurrentActionsPrompt .. actionText
+		end
+	end
 
-	local TurretTypes = {
-		["chaingun"] = "fast-firing chain gun",
-		["coilgun"] = "standard coil gun",
-		["doublecoilgun"] = "burst-fire double coil gun",
-		["flakcannon"] = "flak cannon",
-		["pulselaser"] = "pulse laser",
-		["railgun"] = "rail gun" }
+	-- Tell the character what it is doing.
+	if character.IsOnPlayerTeam and LuaUserData.IsTargetType(character.AIController.ObjectiveManager.CurrentObjective, "Barotrauma.AIObjectiveIdle") then
+		CurrentActionsPrompt = "You are idle, not doing anything important."
+	else
+		local TurretTypes = {
+			["chaingun"] = "fast-firing chain gun",
+			["coilgun"] = "standard coil gun",
+			["doublecoilgun"] = "burst-fire double coil gun",
+			["flakcannon"] = "flak cannon",
+			["pulselaser"] = "pulse laser",
+			["railgun"] = "rail gun" }
 
-	CurrentActionsPrompt = ""
-	if character.SelectedItem then
-		if character.SelectedItem.HasTag("junctionbox") then
-			-- If their selected item is a junction box, they're repairing it.
-			CurrentActionsPrompt = CurrentActionsPrompt .. "You are currently repairing a junction box."
-		elseif character.SelectedItem.HasTag("pump") then
-			CurrentActionsPrompt = CurrentActionsPrompt .. "You are currently repairing a pump."
-		elseif character.SelectedItem.HasTag("periscope") then
-			--If the character is currently manning a turret.
-			for turret in character.SelectedItem.GetConnectedComponents(Components.Turret) do
-				if turret.Item and turret.Item.Prefab and turret.Item.Prefab.Identifier and TurretTypes[turret.Item.Prefab.Identifier.Value] then
-					CurrentActionsPrompt = CurrentActionsPrompt .. "You are currently stationed at the " .. TurretTypes[turret.Item.Prefab.Identifier.Value] .. " turret"
-					
-					local foundAmmo = false
-					-- Get the ammo it's loaded with.
-					for loader in turret.Item.linkedTo do
-						local ammobox = loader.OwnInventory.FirstOrDefault()
-						if ammobox then
-							local ammobox_name = string.lower(ammobox.Name):gsub(" box", "")
-							CurrentActionsPrompt = CurrentActionsPrompt .. " loaded with " .. ammobox_name .. ", scanning the water for threats."
-							foundAmmo = true
-							break
+		
+		if character.SelectedItem then
+			if character.SelectedItem.HasTag("junctionbox") then
+				-- If their selected item is a junction box, they're repairing it.
+				CurrentActionsPrompt = CurrentActionsPrompt .. "You are currently repairing a junction box."
+			elseif character.SelectedItem.HasTag("pump") then
+				CurrentActionsPrompt = CurrentActionsPrompt .. "You are currently repairing a pump."
+			elseif character.SelectedItem.HasTag("periscope") then
+				--If the character is currently manning a turret.
+				for turret in character.SelectedItem.GetConnectedComponents(Components.Turret) do
+					if turret.Item and turret.Item.Prefab and turret.Item.Prefab.Identifier and TurretTypes[turret.Item.Prefab.Identifier.Value] then
+						CurrentActionsPrompt = CurrentActionsPrompt .. "You are currently stationed at the " .. TurretTypes[turret.Item.Prefab.Identifier.Value] .. " turret"
+						
+						local foundAmmo = false
+						-- Get the ammo it's loaded with.
+						for loader in turret.Item.linkedTo do
+							local ammobox = loader.OwnInventory.FirstOrDefault()
+							if ammobox then
+								local ammobox_name = string.lower(ammobox.Name):gsub(" box", "")
+								CurrentActionsPrompt = CurrentActionsPrompt .. " loaded with " .. ammobox_name .. ", scanning the water for threats."
+								foundAmmo = true
+								break
+							end
 						end
+						
+						if not foundAmmo then
+							CurrentActionsPrompt = CurrentActionsPrompt .. ", scanning the water for threats."
+						end
+						
+						-- Only look at the first turret since vanilla subs only have 1 turret per periscope.
+						break
 					end
-					
-					if not foundAmmo then
-						CurrentActionsPrompt = CurrentActionsPrompt .. ", scanning the water for threats."
-					end
-					
-					-- Only look at the first turret since vanilla subs only have 1 turret per periscope.
-					break
 				end
 			end
 		end
@@ -708,20 +882,34 @@ end
 local function BuildMissionsPrompt(source, character)
 
 	local DestinationPrompt = ""
-	if Game.GameSession.Level.EndLocation then
+	if not Game.GameSession.Level.IsLoadedOutpost and Game.GameSession.Level.EndLocation then
 		-- Get the destination name.
 		DestinationPrompt = "Your crew is enroute to " .. Game.GameSession.Level.EndLocation.DisplayName.Value .. "."
 	end
 
 	local MissionsPrompt = ""
 	-- If the character is not on a player team, it won't have a mission.
-	if (character.IsOnPlayerTeam) then
+	if character.IsOnPlayerTeam then
 		-- Only use this prompt if missions are found.
-		if string.len(CurrentMissions) > 0 then
-			MissionsPrompt = "Your crew's current missions are: " .. CurrentMissions .. "."
+		if string.len(AI_NPC.Globals.CurrentMissions) > 0 then
+			MissionsPrompt = "Your crew's current missions are: " .. AI_NPC.Globals.CurrentMissions .. "."
 		else
 			MissionsPrompt = "Your crew is just passing through."
 		end
+	-- TODO: Experimental, let station administrator tell you the jobs he has available.
+	--[[elseif character.HumanPrefab.SpawnPointTags == "admin" then
+		local availableMissions = {}
+		for mission in Game.GameSession.GameMode.Map.CurrentLocation.SelectedMissions do
+		--print(Game.GameSession.GameMode.Map.CurrentLocation.loadedMissions)
+		--for mission in Game.GameSession.GameMode.Map.CurrentLocation.loadedMissions do
+			table.insert(availableMissions, mission.Name.ToString())
+		end
+		
+		if #availableMissions > 0 then
+			 MissionsPrompt = "You have these jobs available to give: " .. table.concat(availableMissions, ", ") .. "."
+		else
+			MissionsPrompt = "You have no more jobs to give."
+		end]]--
 	end
 	
 	return DestinationPrompt .. " " .. MissionsPrompt
@@ -746,64 +934,199 @@ local function BuildNearbyCrewPrompt(character)
 	return NearbyCrewPrompt
 end
 
+
+local function GetAfflictionText(character, affliction, strength)
+
+	local valid_afflictions = {"gunshotwound", "organdamage", "explosiondamage", "bleeding", "burn", "acidburn", "oxygenlow", 
+								"concussion", "bloodloss", "stun", "huskinfection", "opiatewithdrawal", "opiateoverdose", "radiationsickness", 
+								"morbusinepoisoning", "sufforinpoisoning", "deliriuminepoisoning", "paralysis", "nausea", "watchersgaze"}
+	
+	if FindStringInTable(valid_afflictions, affliction.Identifier) then
+	
+		local affliction_name = affliction.GetStrengthText().Value .. " " .. affliction.Prefab.Name.Value
+		if affliction.Source and affliction.Source ~= character then
+				affliction_name = affliction_name .. ", caused by " .. affliction.Source.Name
+		end
+		affliction_name = "(" .. affliction_name .. ") "
+		return affliction_name .. affliction.Prefab.GetDescription(strength, affliction.Prefab.Description.TargetType.Self).Value
+		--return " (" .. affliction.Prefab.Name.Value .. ") " .. affliction.Prefab.GetDescription(strength, affliction.Prefab.Description.TargetType.Self).Value
+	else
+		return nil
+	end
+end
+
+function SortAfflictionsBySeverity(afflictions, excludeBuffs, excludeZero, filterDuplicates, amount)
+	local always_add = {"huskinfection"}
+	local never_add = {"psychosis"}
+	
+    local filteredAfflictions = {}
+    local afflictionNames = {}
+
+    for affliction in afflictions do
+        if (not excludeBuffs or not affliction.Prefab.IsBuff) and
+           (not excludeZero or affliction.Strength > 0) and
+           (affliction.Prefab.Name.Value ~= "") or 
+		   FindStringInTable(always_add, affliction.Identifier) and not FindStringInTable(never_add, affliction.Identifier) then
+            if not filterDuplicates or not FindStringInTable(afflictionNames, affliction.Identifier) then
+                table.insert(filteredAfflictions, affliction)
+                table.insert(afflictionNames, affliction.Identifier)
+            else
+                -- If duplicates are not allowed, replace the existing one with the more damaging one.
+                for j, existingAffliction in ipairs(filteredAfflictions) do
+                    if existingAffliction.Prefab.Name.Value == affliction.Prefab.Name.Value then
+                        if affliction.DamagePerSecond > existingAffliction.DamagePerSecond or
+                           (affliction.DamagePerSecond == existingAffliction.DamagePerSecond and
+                            (affliction.Strength / affliction.Prefab.MaxStrength) > (existingAffliction.Strength / existingAffliction.Prefab.MaxStrength)) then
+                            filteredAfflictions[j] = affliction
+                        end
+                        break
+                    end
+                end
+            end
+        end
+    end
+	
+    -- Sort the afflictions by DamagePerSecond and then by Strength / MaxStrength.
+    table.sort(filteredAfflictions, function(a, b)
+        if a.DamagePerSecond == b.DamagePerSecond then
+            return (a.Strength / a.Prefab.MaxStrength) > (b.Strength / b.Prefab.MaxStrength)
+        else
+            return a.DamagePerSecond > b.DamagePerSecond
+        end
+    end)
+
+    -- Limit the number of afflictions returned based on amount.
+    if amount and amount > 0 then
+        local limitedAfflictions = {}
+        for i = 1, math.min(amount + 1, #filteredAfflictions) do
+            table.insert(limitedAfflictions, filteredAfflictions[i])
+        end
+        return limitedAfflictions
+    else
+        return filteredAfflictions
+    end
+end
+
 -- Tell the character about its health status.
 local function BuildHealthPrompt(character)
 
 	-- Tell the character its vitality, if injured.
 	local healthLevels = {"You are seriously injured, close to death.", "You are heavily injured.", "You are very injured.", "You are slightly injured.", ""}
-	HealthLevelPrompt = healthLevels[math.floor(character.HealthPercentage / 25) + 1] or ""
+	local HealthLevelPrompt = healthLevels[math.floor(character.HealthPercentage / 25) + 1] or ""
 
 	-- Tell the character if it has psychosis.
 	local PsychosisPrompt = ""
-	local affliction = character.CharacterHealth.GetAffliction("psychosis")
-    if affliction ~= nil then
-		if affliction.Strength > 10 and affliction.Strength <= 25 then
-			PsychosisPrompt = "You are hallucinating slightly."
-		elseif affliction.Strength > 25 and affliction.Strength <= 50 then
-			PsychosisPrompt = "You are moderately hallucinating."
-		elseif affliction.Strength > 50 and affliction.Strength <= 75 then
-			PsychosisPrompt = "You are severely hallucinating."
-		elseif affliction.Strength > 75 then
-			PsychosisPrompt = "You are severely hallucinating, but aren't aware of it. You don't know what's real or illusion. You could be seeing fires, floods, and enemies. You could be hearing strange sounds or the reactor meltdown alarms."
-		end
-    end
+	local PsychosisStrength = character.CharacterHealth.GetAfflictionStrengthByIdentifier("psychosis")
 
-	-- List any afflictions.
-	local serious_afflictions = {}
-	for affliction in character.CharacterHealth.GetAllAfflictions(function(a) end) do
-		local afflictiondata = ""
-		
-		-- Exclude psychosis since we handle it elsewhere.
-		if affliction.Prefab.Name.Value ~= "Psychosis" then
-			-- Some afflictions are always present even if their strength is at 0, filter these out.
-			if affliction.Strength > 0 then
-				afflictiondata = affliction.GetStrengthText().Value .. " " .. affliction.Prefab.Name.Value
-				if affliction.Source and affliction.Source ~= character then
-					afflictiondata = afflictiondata .. " caused by " .. affliction.Source.Name
-				end
-				-- Only add this affliction if it doesn't already exist in the list.
-				if not FindStringInTable(serious_afflictions, afflictiondata) then
-					-- Limit to 4 afflictions because this list can get long.
-					if #serious_afflictions < 4 then
-						table.insert(serious_afflictions, afflictiondata)
-					end
-				end
+	if PsychosisStrength <= 10 then
+		PsychosisPrompt = ""
+	elseif PsychosisStrength > 10 and PsychosisStrength <= 25 then
+		PsychosisPrompt = "You are hallucinating slightly."
+	else
+		if PsychosisStrength > 25 and PsychosisStrength <= 50 then
+			PsychosisPrompt = "You are moderately hallucinating."
+		elseif PsychosisStrength > 50 and PsychosisStrength <= 75 then
+			PsychosisPrompt = "You are severely hallucinating."
+		elseif PsychosisStrength > 75 then
+			PsychosisPrompt = "You are severely hallucinating, but aren't aware of it. You don't know what's real or illusion."
+		end
+
+		-- Calculate the probability factor based on the strength of psychosis.
+		local probabilityFactor = math.max(10, PsychosisStrength - 10)
+
+		-- Add random hallucinations based on the psychosis strength.
+		if math.random(1, 100) <= probabilityFactor then
+			PsychosisPrompt = PsychosisPrompt .. " You can hear the reactor melting down."
+		end
+
+		if math.random(1, 100) <= probabilityFactor * 1.5 then
+			if math.random(1, 100) <= 50 then
+				PsychosisPrompt = PsychosisPrompt .. " You can see a fire."
+			else
+				PsychosisPrompt = PsychosisPrompt .. " The room you are in is flooded."
+			end
+		end
+
+		if math.random(1, 100) <= 50 then
+			PsychosisPrompt = PsychosisPrompt .. " You can see some broken devices that need repair."
+		end
+
+		if math.random(1, 100) <= probabilityFactor then
+			if math.random(1, 100) <= 50 then
+				PsychosisPrompt = PsychosisPrompt .. " You hear a growling and chewing at the hull."
+			else
+				PsychosisPrompt = PsychosisPrompt .. " Someone is honking a clown horn."
 			end
 		end
 	end
 
-	AfflictionPrompt = ""
+	-- Tell the character if it has a concussion.
+	--[[local ConcussionPrompt = ""
+	local ConcussionStrength = character.CharacterHealth.GetAfflictionStrengthByIdentifier("concussion")
+	if ConcussionStrength > 5 then
+		ConcussionPrompt = "A concussion is causing your vision to be blurred, nausea, and a pounding headache."
+	end]]--
+
+	--local test = character.CharacterHealth.GetAllAfflictions(function(a) end)
+	--for test2 in CharacterHealth.SortAfflictionsBySeverity(test) do
+	--	print(test2)
+	--end
+	
+	local sorted_afflictions = SortAfflictionsBySeverity(character.CharacterHealth.GetAllAfflictions(function(a) end), true, true, true, 4)
+
+	local AfflictionDescriptions = ""
+	-- List any afflictions.
+	local serious_afflictions = {}
+	for affliction in sorted_afflictions do
+		--local afflictiondata = ""
+		-- Exclude psychosis and concussion since we handle those elsewhere.
+		--if affliction.Prefab.Name.Value ~= "Psychosis" then
+			-- Some afflictions are always present even if their strength is at 0, filter these out.
+			--if affliction.Strength > 0 then
+		--afflictiondata = affliction.GetStrengthText().Value .. " " .. affliction.Prefab.Name.Value
+		--if affliction.Source and affliction.Source ~= character then
+		--	afflictiondata = afflictiondata .. " caused by " .. affliction.Source.Name
+		--end
+				-- Only add this affliction if it doesn't already exist in the list.
+				--if not FindStringInTable(serious_afflictions, afflictiondata) then
+					-- Limit to 3 afflictions because this list can get long.
+					--if #serious_afflictions < 3 then
+					
+			local description = GetAfflictionText(character, affliction, affliction.Strength)
+			if description then
+				if #AfflictionDescriptions == 0 then
+					AfflictionDescriptions = description
+				else
+					AfflictionDescriptions = AfflictionDescriptions .. ", " .. description
+				end
+				--print(affliction.Identifier.Value)
+				--print(tostring(affliction.Strength) .. " " .. description)
+			end
+		
+			--table.insert(serious_afflictions, afflictiondata)
+					--end
+				--end
+			--end
+		--end
+	end
+
+	--[[local AfflictionPrompt = ""
 	-- Only list afflictions if they were found.
 	if #serious_afflictions > 0 then
 		 AfflictionPrompt = "This is a list of your current injuries: " .. table.concat(serious_afflictions, ", ") .. "."
+	end]]--
+
+	local AfflictionDescriptionPrompt = ""
+	if #AfflictionDescriptions > 0 then
+		AfflictionDescriptionPrompt = "Here is information about your current ailments: " .. AfflictionDescriptions
 	end
 
-	return HealthLevelPrompt .. " " .. PsychosisPrompt .. " " .. AfflictionPrompt
+	return HealthLevelPrompt .. " " .. PsychosisPrompt .. " " .. " " .. AfflictionDescriptionPrompt
 end
 
 -- Tell the character who is speaking to it.
 local function BuildSourcePrompt(source, character)
-	local SourcePrompt = "Speaking to you is <CREW> <NAME>, a<PERSONALITY> <GENDER> <SKILL> <ROLE>."
+	local SourcePrompt = "Speaking to you is <CREW> <NAME>, a <PERSONALITY> <GENDER> <ROLE><SKILL>."
 
 	-- Tell the character if the source is part of their crew.
 	if source.TeamID == character.TeamID then
@@ -842,10 +1165,10 @@ local function BuildSourcePrompt(source, character)
 	if source.Info.Job.PrimarySkill then
 		local skillLevel = source.GetSkillLevel(source.Info.Job.PrimarySkill.Identifier)
 
-		local skillLevels = {"frighteningly incompetent", "mediocre", "unremarkable", "expert", "legendary"}
+		local skillLevels = {"novice", "mediocre", "average", "expert", "legendary"}
 		local skill = skillLevels[math.floor(skillLevel / 25) + 1] or "novice"
 				
-		SourcePrompt = SourcePrompt:gsub("<SKILL>", skill)
+		SourcePrompt = SourcePrompt:gsub("<SKILL>", " of " .. skill .. " skill")
 	else
 		SourcePrompt = SourcePrompt:gsub("<SKILL>", "")
 	end
@@ -879,6 +1202,12 @@ local function BuildSubmarineStatePrompt(character)
 		return ""
 	end
 
+	-- If they have strong psychosis, don't give accurate information about the sub's state.
+	local PsychosisStrength = character.CharacterHealth.GetAfflictionStrengthByIdentifier("psychosis")
+	if PsychosisStrength >= 50 then
+		return
+	end
+
 	local isMechanic = character.IsMechanic
 	local isEngineer = character.IsEngineer
 	-- If they have a handheld status monitor, they can see damaged hulls, 
@@ -897,7 +1226,7 @@ local function BuildSubmarineStatePrompt(character)
 	end
 
 	-- Get the submarine (or outpost) associated with this character.
-	character_submarine = nil
+	local character_submarine = nil
 	for submarine in Submarine.Loaded do
 		if submarine.TeamID == character.TeamID then
 			character_submarine = submarine
@@ -929,10 +1258,11 @@ local function BuildSubmarineStatePrompt(character)
 	local flaming_devices = {}
 	for hull in character_submarine.GetHulls(false) do
 		
-		--for firesource in hull.FireSources do
-		--	--TODO: Not sure what to do here.
-		--	print(firesource.Size.X)
-		--end
+		for firesource in hull.FireSources do
+			if firesource.Size.X > 0 then
+				TotalFires = TotalFires + 1
+			end
+		end
 		
 		if not hull.IsWetRoom then
 			TotalNonWetRooms = TotalNonWetRooms + 1
@@ -991,7 +1321,7 @@ local function BuildSubmarineStatePrompt(character)
 	end
 
 	-- Everyone knows if the sub is breached, mechanics know specific details.
-	OuterHullStatus = ""
+	local OuterHullStatus = ""
 	if #damaged_hulls > 0 then
 		if isMechanic then
 			OuterHullStatus = OuterHullStatus .. "The outer hull is breached in the following areas: " .. table.concat(damaged_hulls, ", ") .. "."
@@ -1000,8 +1330,16 @@ local function BuildSubmarineStatePrompt(character)
 		end
 	end
 	
+	-- Everyone knows if the sub is on fire.
+	local FireStatus = ""
+	if TotalFires == 1 then
+		FireStatus = FireStatus .. "There is a fire."
+	elseif TotalFires > 1 then
+		FireStatus = FireStatus .. "There are multiple fires."
+	end
+	
 	-- Everyone knows if the sub is flooded, engineers know specific details.
-	FloodedStatus = ""
+	local FloodedStatus = ""
 	if #flooded_rooms > 0 then
 		local PercentageDescriptor = {"very slightly flooded", "slightly flooded", "significantly flooded", "severely flooded", "completely flooded"}
 		local PercentFlooded = math.floor(#flooded_rooms / TotalNonWetRooms * 100)
@@ -1020,7 +1358,7 @@ local function BuildSubmarineStatePrompt(character)
 	end
 
 	-- Engineers know how damaged the electrical systems are.
-	ElectricStatus = ""
+	local ElectricStatus = ""
 	if TotalDamagedElectricalRepairables > 0 and isEngineer then
 		local PercentageDescriptor = {"A minor amount", "Several", "Half", "Most", "All"}
 		local PercentBroken = math.floor(TotalDamagedElectricalRepairables / TotalElectricalRepairables * 100)
@@ -1051,7 +1389,7 @@ local function BuildSubmarineStatePrompt(character)
 	end
 	
 	-- Mechanics know how damaged the machines are.
-	MechanicalStatus = ""
+	local MechanicalStatus = ""
 	if TotalDamagedMechanicaRepairables > 0 and isMechanic then
 		local PercentageDescriptor = {"A minor amount", "Several", "Half", "Most", "All"}
 		local PercentBroken = math.floor(TotalDamagedMechanicaRepairables / TotalMechanicalRepairables * 100)
@@ -1081,320 +1419,15 @@ local function BuildSubmarineStatePrompt(character)
 		end
 	end
 	
-	-- TODO: Say if there is a fire.
-	
-	return OuterHullStatus .. " " .. FloodedStatus .. " " .. ElectricStatus .. " " .. MechanicalStatus
+	return FireStatus .. " " .. OuterHullStatus .. " " .. FloodedStatus .. " " .. ElectricStatus .. " " .. MechanicalStatus
 end
-
--- Parse the HTTP reponse to get the data from the API.
-function GetAPIResponse(str)
-	local success, data = pcall(json.parse, str)
-	if not success then
-		print(MakeErrorText("Error parsing JSON: " .. data))
-		print(MakeErrorText("Reason: " .. str))
-		return ""
-	end
-	
-	if data["error"] then
-		print(MakeErrorText("Error received from API: " .. data["error"]["message"]))
-		if data["error"]["code"] and data["error"]["code"] == "insufficient_quota" then
-			print(MakeErrorText("This means you have to add credits to your API account. It is not a bug with the AI NPCs mod."))
-		end
-		return ""
-	end
-
-	local content = data["choices"][1]["message"]["content"]
-
-	if data["usage"] and data["usage"]["prompt_tokens"] and data["usage"]["completion_tokens"] then
-		local prompt_tokens = data["usage"]["prompt_tokens"]
-		local completion_tokens = data["usage"]["completion_tokens"]
-		tokens_used_this_session = tokens_used_this_session + prompt_tokens + completion_tokens
-		
-		-- Print token usage information to console.
-		print("Prompt Tokens: " .. prompt_tokens)
-		print("Result Tokens: " .. completion_tokens)
-		print("Total: " .. prompt_tokens + completion_tokens)
-		print("Total for Session: " .. tokens_used_this_session)
-	end
-
-	return content
-end
-
--- Make the character speak the data from API.
-function MakeCharacterSpeak(source, msg, character, str, identifier, delay)	
-	local speach = GetAPIResponse(str)
-	
-	if identifier == nil then
-		identifier = Identifier.Empty
-	end
-	
-	if string.len(speach) > 0 then
-	
-		if source != character and str then
-			-- Add the original message from the player to the NPC's conversation log.
-			AddToConversationHistory(source, character, msg)
-		end
-	
-		speach = SanitizeNPCSpeach(character, speach)
-	
-		-- Add this line from the NPC to the player to the NPC's conversation history.
-		AddToConversationHistory(nil, character, speach)
-
-		if source.Inventory.GetItemInLimbSlot(InvSlotType.Headset) and character.Inventory.GetItemInLimbSlot(InvSlotType.Headset) then
-			-- If they both have radios, use the radio.
-			character.Speak(speach, ChatMessageType.Radio, 0.0, identifier, delay)
-		else
-			-- Otherwise use local chat.
-			character.Speak(speach, ChatMessageType.Default, 0.0, identifier, delay)
-		end
-	end
-	
-	CharacterSpeechInfo[character.Name].IsSpeaking = false
-end
-
--- Used to refine canned speach from NPCs with AI.
-local function NPCSpeak(character, messageType, message, identifier, delay, extrainfo)
-	-- Prevent spam.
-	if CharacterSpeechInfo[character.Name] then
-	
-		if CharacterSpeechInfo[character.Name].LastSpeech then
-			PrintDebugInfo("   Seconds since last speach: " .. Timer.GetTime() - CharacterSpeechInfo[character.Name].LastSpeech)
-		end
-		
-		-- Already waiting on a response from this character.
-		if CharacterSpeechInfo[character.Name].IsSpeaking then
-			PrintDebugInfo("   Character is already speaking.")
-			
-			-- However, we've been waiting 30 seconds already so something probably went wrong.
-			if (Timer.GetTime() - CharacterSpeechInfo[character.Name].LastSpeech) > 30.0 then
-				-- Reset the IsSpeaking flag so that it doesn't stay stuck.
-				CharacterSpeechInfo[character.Name].IsSpeaking = false
-			else
-				-- If it has been less than 30 seconds, maybe it's just slow.
-				return false
-			end
-		end
-		
-		-- At least 5 seconds between requests.
-		if (Timer.GetTime() - CharacterSpeechInfo[character.Name].LastSpeech) < 5.0 then
-			PrintDebugInfo("   Blocked to prevent spam.")
-			return false
-		end
-		
-		-- At least 5 seconds between requests.
-		if (Timer.GetTime() - LastSpeech) < 5.0 then
-			PrintDebugInfo("   Blocked to prevent spam, globally.")
-			return false
-		end
-	else
-		CharacterSpeechInfo[character.Name] = {IsSpeaking = false, LastSpeech = 0.0}
-	end
-
-	PrintDebugInfo("   Building prompt.")
-
-	-- Build the prompt header.
-	prompt_header = "Let's roleplay in the universe of Barotrauma. "
-	prompt_header = prompt_header .. "Responses should be conversational and from a first person perspective, without prefixes, emotes, actions, or narration of internal dialogue. "
-	prompt_header = prompt_header .. "When referencing the character traits or prompt, use unique words and phrases to convey the ideas without copying them exactly. "
-	prompt_header = prompt_header .. "Dialogue should be fresh, avoiding repetition. Responses should be consistent with what your character knows and believes.\\n\\n"
-	--[[---local prompt_header = "Let's roleplay in the universe of Barotrauma. "
-	---prompt_header = prompt_header .. "You speak in a conversational manner, always from a first person perspective. "
-	--prompt_header = prompt_header .. "You don't describe things or actions, just chat as your character. "
-	--prompt_header = prompt_header .. "Do not prefix your response with your name, your response should only be what your character would speak. "
-	---prompt_header = prompt_header .. "Keep your responses short, up to three sentences. "
-	local prompt_header = "Let's roleplay in the universe of Barotrauma. "
-	prompt_header = prompt_header .. "You speak in a conversational manner, always from a first person perspective. "
-	--prompt_header = prompt_header .. "Remember, no repeating past dialogue or introducing unknown facts or actions. Everything you say should be consistent with what your character knows and believes. "
-	--prompt_header = prompt_header .. "You don't describe things or actions, just chat as your character. "
-	prompt_header = prompt_header .. "Limit your response to 200 characters. Do not say anything you've said before. "]]--
-	prompt_header = prompt_header .. "<LANGUAGE> <DEMOGRAPHICS> <PROFILE> <LOCATION> <MISSIONS> <ORDERS> <SUBMARINE><INVENTORY> <HEALTH> <EXTRA_INFO> <CONVERSATION_HISTORY> "
-	
-	local LanguagePrompt = BuildLanguagePrompt(character)
-	prompt_header = prompt_header:gsub("<LANGUAGE>", LanguagePrompt)
-	
-	local CharacterProfilePrompt = BuildCharacterProfilePrompt(character)
-	prompt_header = prompt_header:gsub("<PROFILE>", CharacterProfilePrompt)
-	
-	local DemographicsPrompt = BuildDemographicsPrompt(character)
-	prompt_header = prompt_header:gsub("<DEMOGRAPHICS>", DemographicsPrompt)
-	
-	local LocationPrompt = BuildLocationPrompt(character)
-	prompt_header = prompt_header:gsub("<LOCATION>", LocationPrompt)
-	
-	local SubmarinePrompt = BuildSubmarineStatePrompt(character)
-	prompt_header = prompt_header:gsub("<SUBMARINE>", SubmarinePrompt)
-	
-	local InventoryPrompt = BuildInventoryPrompt(character)
-	prompt_header = prompt_header:gsub("<INVENTORY>", InventoryPrompt)
-	
-	local OrdersPrompt = BuildOrdersPrompt(character)
-	prompt_header = prompt_header:gsub("<ORDERS>", OrdersPrompt)
-	
-	local MissionsPrompt = BuildMissionsPrompt(source, character)
-	prompt_header = prompt_header:gsub("<MISSIONS>", MissionsPrompt)
-
-	-- This hasn't been very useful so far.
-	--local NearbyCrewPrompt = BuildNearbyCrewPrompt(character)
-	--prompt_header = prompt_header:gsub("<NEARBY_CREW>", NearbyCrewPrompt)
-
-	local HealthPrompt = BuildHealthPrompt(character)
-	prompt_header = prompt_header:gsub("<HEALTH>", HealthPrompt)
-
-	local ExtraInfoPrompt = extrainfo
-	prompt_header = prompt_header:gsub("<EXTRA_INFO>", ExtraInfoPrompt)
-
-	local ConversationHistoryPrompt = BuildConversationHistoryPrompt(character)
-	prompt_header = prompt_header:gsub("<CONVERSATION_HISTORY>", ConversationHistoryPrompt)
-
-	prompt_header = prompt_header .. "\\n\\nThis what you are trying to say next, but you need to transform it into the style of your character using only known information: "
-
-	-- Save some tokens by replacing consecutive spaces with a single space.
-	prompt_header = prompt_header:gsub("%s+", " ")
-
-	-- Write the full prompt to a file for debugging purposes.
-	File.Write(AI_NPC.Path .. "/Last_Prompt.txt", prompt_header .. "\\\"" .. message .. "\\\"")
-	
-	local data = {
-		model = AI_NPC.Config.Model,
-		messages = {{
-			role = "user",
-			content = prompt_header .. "\\\"" .. message .. "\\\""
-		}},
-		temperature = 0.7,
-		--frequency_penalty = 0.4
-	}
-
-	local JSONData = json.serialize(data)
-
-	-- Concatenate the header prompt with the player message and insert it into the JSON data of the HTTP request.
-	PrintDebugInfo(data["messages"][1]["content"])
-
-	local savePath = AI_NPC.Path .. "/HTTP_Response.txt" -- Save HTTP response to a file for debugging purposes.
-
-	if ValidateAPISettings() then
-		-- Send the prompt to API and process the output in MakeCharacterSpeak.
-		-- Comment this line out to test prompt formation without sending to API.
-		CharacterSpeechInfo[character.Name].IsSpeaking = true
-		Networking.HttpPost(AI_NPC.Config.APIEndpoint, function(res) MakeCharacterSpeak(character, nil, character, res, identifier, delay) end, JSONData, "application/json", { ["Authorization"] = "Bearer " .. AI_NPC.Config.APIKey }, savePath)
-		return true
-	end
-	
-	return false
-end
-
--- Patch to the Speak function to allow for NPCs to talk through AI without the player explicitly commanding them.
--- Used in SP for NPC speach and Player orders, but not Player speach.
--- Used in MP for NPC speach only.
-Hook.Patch('Barotrauma.Character', 'Speak', function(instance, ptable) 
-	ptable.PreventExecution = false
-
-	-- Check if configuration setting for this feature is turned on.
-	if not AI_NPC.Config.EnableForNPCs then
-		return
-	end
-	
-	-- Only use this for bots.
-	-- This prevents it from running whenever the player assigns an order.
-	if not instance.IsBot then
-		return
-	end
-
-	-- Exclude NPCs not on a player team.
-	-- This will exclude outpost chatter.
-	if not instance.IsOnPlayerTeam then
-		return
-	end
-	
-	-- Skip empty identifiers.
-	-- Just let anything with no identifier through, it doesn't work well with AI.
-	-- Examples: random NPC conversations and positive/negative response to orders like "Yes, sir!"
-	if not ptable['identifier'] or ptable['identifier'] == Identifier.Empty then
-		--PrintDebugInfo("Non-AI speach detected: '" .. ptable['message'] .. "', EMPTY IDENTIFIER")
-		return
-	end
-				
-	local identifier = ptable['identifier'].ToString()
-			
-	-- Ignore speech already ran through AI.
-	if #identifier >= 3 and string.sub(identifier, 1, 3) == "ai_" then
-		PrintDebugInfo("AI Speach detected: " .. identifier)
-		return
-	end
-
-	-- Skip identifiers that should be ignored.
-	if IsIgnoredSpeach(identifier) then
-		return
-	end
-
-	-- At this point we are at speach that can be processed via AI.
-	PrintDebugInfo("Non-AI speach detected: '" .. ptable['message'] .. ", " .. identifier)	
-				
-	-- Determine if something similar has already been said by this NPC.
-	-- Once an NPC says something with an identifier, Barotrauma holds it in prevAiChatMessages until the minimum delay has been reached.
-	-- So if the identifier itself or the ai_ prefixed identifier are in the prevAiChatMessages queue, this has already been said recently.
-	for ident, ftime in pairs(instance.prevAiChatMessages) do
-		--PrintDebugInfo("   " .. ptable['identifier'].ToString() .. ", " .. tostring(ident) .. " = " .. tostring(string.find(ident.ToString(), ptable['identifier'].ToString())))
-		if string.find(ident.ToString(), identifier) then --ident == ptable['identifier'] then
-			PrintDebugInfo("   Already said this.")
-			return
-		end
-	end
-
-	-- Random chance as determined from the ChanceForNPCSpeach configuration setting.
-	-- Just to reduce token use, if desired.
-	if math.random(1, 100) > AI_NPC.Config.ChanceForNPCSpeach then
-		return
-	end
-	
-	PrintDebugInfo("   Attempting to run through AI.")
-	local msg, extrainfo = GetAdjustedNPCSpeach(ptable['message'], identifier, instance)
-	-- Send the message to AI for transformation.
-	-- If it returns true, it means the NPC chat has been sent to AI. Once the response has been received, that response function will call this Speak hook again
-	-- with the identifier starting with "ai_", which will be ignored by this function.
-	-- TODO: Set delay to 60 seconds, might change later to be variable depending on the type of message.
-	local spoke = NPCSpeak(instance, ptable['messageType'], msg, "ai_"..identifier, 60.0, extrainfo) --ptable['minDurationBetweenSimilar'])
-	if spoke then
-		CharacterSpeechInfo[instance.Name].LastSpeech = Timer.GetTime()
-		LastSpeech = CharacterSpeechInfo[instance.Name].LastSpeech
-	end
-	
-	-- This prevents the original message from being processed by the Barotrauma.Character.Speak() function.
-	-- So it won't be spoken or added to the character's prevAiChatMessageQueue.
-	ptable['message'] = ""
-
-end, Hook.HookMethodType.Before)
-
--- The original C# Speak function, for reference in the hook above.
--- This runs after the hook.
---[[
-public void Speak(string message, ChatMessageType? messageType = null, float delay = 0.0f, Identifier identifier = default, float minDurationBetweenSimilar = 0.0f)
-{
-	if (GameMain.NetworkMember != null && GameMain.NetworkMember.IsClient) { return; }
-	if (string.IsNullOrEmpty(message)) { return; }
-
-	if (SpeechImpediment >= 100.0f) { return; }
-
-	if (prevAiChatMessages.ContainsKey(identifier) && 
-		prevAiChatMessages[identifier] < Timing.TotalTime - minDurationBetweenSimilar) 
-	{ 
-		prevAiChatMessages.Remove(identifier);                 
-	}
-
-	//already sent a similar message a moment ago
-	if (identifier != Identifier.Empty && minDurationBetweenSimilar > 0.0f &&
-		(aiChatMessageQueue.Any(m => m.Identifier == identifier) || prevAiChatMessages.ContainsKey(identifier)))
-	{
-		return;
-	}
-	aiChatMessageQueue.Add(new AIChatMessage(message, messageType, identifier, delay));
-}--]]
 
 -- Save data to an NPC's conversation history file.
 -- source = Who spoke to the NPC to trigger the reply, if any.
 -- target = The NPC saying the reply.
 -- message = The message text.
-function AddToConversationHistory(source, target, message)
-	local filename = string.format("%s/%s.txt", CurrentSaveDirectory, target.Name)
+local function AddToConversationHistory(source, target, message)
+	local filename = string.format("%s/%s.txt", AI_NPC.Globals.CurrentSaveDirectory, target.Name)
 	local messageline = ""
 	
 	if source then
@@ -1415,7 +1448,7 @@ end
 -- Read the NPC's conversation file and pull the last lines from it.
 -- The number of lines is determined by the ConversationHistoryToUse configuration setting.
 local function ReadConversationHistory(target)
-	local filename = string.format("%s/%s.txt", CurrentSaveDirectory, target.Name)
+	local filename = string.format("%s/%s.txt", AI_NPC.Globals.CurrentSaveDirectory, target.Name)
 	local lastLines = {}
 	
 	if File.Exists(filename) then
@@ -1538,70 +1571,182 @@ local function BuildJSONMessages(prompt_header, character, source, msg)
 	return Messages
 end
 
-function ValidateAPISettings()
-    -- Check if the session token cap has been exceeded.
-    if AI_NPC.Config.SessionTokenCap ~= -1 and tokens_used_this_session >= AI_NPC.Config.SessionTokenCap then
-        print(MakeErrorText("Token limit for this session has been exceeded."))
-		print(MakeErrorText("Use the \"" .. AI_NPC.CmdPrefix .. "setconfig SessionTokenCap [value]\" command to increase it!"))
-		if Game.IsSingleplayer then
-			print(MakeErrorText("Or reset the current usage for this session by reloading Lua with the \"cl_reloadlua\" command."))
-		else
-			print(MakeErrorText("Or reset the current usage for this session by reloading Lua with the \"reloadlua\" command."))
+-- Parse the HTTP reponse to get the data from the API.
+function GetAPIResponse(str)
+	local success, data = pcall(json.parse, str)
+	if not success then
+		print(MakeErrorText("Error parsing JSON: " .. data))
+		print(MakeErrorText("Reason: " .. str))
+		return ""
+	end
+	
+	if data["error"] then
+		print(MakeErrorText("Error received from API: " .. data["error"]["message"]))
+		if data["error"]["code"] and data["error"]["code"] == "insufficient_quota" then
+			print(MakeErrorText("This means you have to add credits to your API account. It is not a bug with the AI NPCs mod."))
 		end
-        return false
-    end
+		return ""
+	end
 
-    -- Check if API key is not set.
-    if string.len(AI_NPC.Config.APIEndpoint) == 0 then
-        print(MakeErrorText("No API Endpoint has been set, call to API will not be executed."))
-		print(MakeErrorText("Use the \"" .. AI_NPC.CmdPrefix .. "setconfig APIEndpoint [url]\" command to set it!"))
-        return false
-    end
+	local content = data["choices"][1]["message"]["content"]
 
-    -- Check if API key is not set.
-    if string.len(AI_NPC.Config.APIKey) == 0 then
-        print(MakeErrorText("No API Key has been set, call to API will not be executed."))
-		print(MakeErrorText("Use the \"" .. AI_NPC.CmdPrefix .. "setconfig APIKey [key]\" command to set it!"))
-        return false
-    end
+	if data["usage"] and data["usage"]["prompt_tokens"] and data["usage"]["completion_tokens"] then
+		local prompt_tokens = data["usage"]["prompt_tokens"]
+		local completion_tokens = data["usage"]["completion_tokens"]
+		tokens_used_this_session = tokens_used_this_session + prompt_tokens + completion_tokens
+		
+		-- Print token usage information to console.
+		print("Prompt Tokens: " .. prompt_tokens)
+		print("Result Tokens: " .. completion_tokens)
+		print("Total: " .. prompt_tokens + completion_tokens)
+		print("Total for Session: " .. tokens_used_this_session)
+	end
 
-    -- Check if model is not set.
-    if string.len(AI_NPC.Config.Model) == 0 then
-        print(MakeErrorText("No Model has been set, call to API will not be executed."))
-		print(MakeErrorText("Use the \"" .. AI_NPC.CmdPrefix .. "setconfig Model [name]\" command to set it!"))
-        return false
-    end
-
-    -- Check if API calls are disabled.
-    if not AI_NPC.Config.EnableAPI then
-        print(MakeErrorText("API calls are currently disabled."))
-		print(MakeErrorText("Use the \"" .. AI_NPC.CmdPrefix .. "setconfig EnableAPI true\" command to enable them!"))
-        return false
-    end
-
-    return true
+	return content
 end
 
-local function BuildPlayerPromptAndSend(client, character, msg, chattype, source)
-	if CharacterSpeechInfo[character.Name] == nil then
+-- Make the character go back to what it was doing before it started walking to the speaker.
+local function CompleteObjective(objective)
+	objective.Abandon = true
+end
+
+-- Make the character walk toward the speaker.
+local function MoveTowardSpeaker(character, speaker)
+	local manager = character.AIController.ObjectiveManager
+	local objective = AIObjectiveGoTo(speaker, character, manager)
+	objective.SpeakIfFails = false
+	objective.DebugLogWhenFails = false
+	objective.AllowGoingOutside = false
+	objective.CloseEnoughMultiplier = 1.5
+
+	manager.AddObjective(objective)
+	Timer.Wait(function() CompleteObjective(objective) end, 4000)
+end
+
+-- Make the character speak the data from API.
+function MakeCharacterSpeak(source, msg, character, str, identifier, delay, chatType, add_to_history)	
+	local speach = GetAPIResponse(str)
+	
+	if identifier == nil then
+		identifier = Identifier.Empty
+	end
+	
+	if string.len(speach) > 0 then
+	
+		speach = SanitizeNPCSpeach(character, speach)
+	
+		if add_to_history then
+			if source != character and str then
+				-- Add the original message from the player to the NPC's conversation log.
+				AddToConversationHistory(source, character, msg)
+			end
+		
+			-- Add this line from the NPC to the player to the NPC's conversation history.
+			AddToConversationHistory(nil, character, speach)
+		end
+
+		-- Use local chat if the original message was in local chat or both characters do not have radios.
+		if not (chatType == ChatMessageType.Radio and source.Inventory.GetItemInLimbSlot(InvSlotType.Headset) and character.Inventory.GetItemInLimbSlot(InvSlotType.Headset)) then
+			chatType = ChatMessageType.Default
+		end
+
+		if(AI_NPC.Config.ResponseChunkSize > 0) then
+			-- Split response into chunks.
+			local messages = SplitBySentences(speach, AI_NPC.Config.ResponseChunkSize)
+
+			-- Send each chunk with a delay based on its index.
+			-- So first chunk is sent after 1 second, second chunk is sent after 2 seconds, etc.
+			-- Adding a little extra delay after the first message to make longer messages less spammy: (index-1 * 0.5)
+			-- First = 1 second, Second = 2.5 seconds, Third = 4 seconds, Fourth = 5.5 seconds
+			for index, message in ipairs(messages) do
+				character.Speak(message, chatType, index + (index-1 * 0.5), identifier, delay)
+			end
+		else
+			-- Send the entire message at once.
+			character.Speak(speach, chatType, 1.0, identifier, delay)
+		end
+		
+		-- 50% chance for an idle character to walk toward speaker when using local chat.
+		if source != character and not character.SelectedSecondaryItem and (math.random(1, 100) <= 50) and chatType == ChatMessageType.Default 
+		and LuaUserData.IsTargetType(character.AIController.ObjectiveManager.CurrentObjective, "Barotrauma.AIObjectiveIdle") then
+			MoveTowardSpeaker(character, source)
+		end
+	end
+	
+	CharacterSpeechInfo[character.Name].IsSpeaking = false
+end
+
+-- Used to refine canned speach from NPCs with AI.
+local function NPCSpeak(character, messageType, message, identifier, delay, extrainfo, add_to_history)
+	-- Prevent spam.
+	if CharacterSpeechInfo[character.Name] then
+	
+		if CharacterSpeechInfo[character.Name].LastSpeech then
+			PrintDebugInfo("   Seconds since last speach: " .. Timer.GetTime() - CharacterSpeechInfo[character.Name].LastSpeech)
+		end
+		
+		-- Already waiting on a response from this character.
+		if CharacterSpeechInfo[character.Name].IsSpeaking then
+			PrintDebugInfo("   Character is already speaking.")
+			
+			-- However, we've been waiting 30 seconds already so something probably went wrong.
+			if (Timer.GetTime() - CharacterSpeechInfo[character.Name].LastSpeech) > 30.0 then
+				-- Reset the IsSpeaking flag so that it doesn't stay stuck.
+				CharacterSpeechInfo[character.Name].IsSpeaking = false
+			else
+				-- If it has been less than 30 seconds, maybe it's just slow.
+				return false
+			end
+		end
+		
+		-- At least 5 seconds between requests.
+		if (Timer.GetTime() - CharacterSpeechInfo[character.Name].LastSpeech) < 5.0 then
+			PrintDebugInfo("   Blocked to prevent spam.")
+			return false
+		end
+		
+		-- At least 5 seconds between requests.
+		if (Timer.GetTime() - LastSpeech) < 5.0 then
+			PrintDebugInfo("   Blocked to prevent spam, globally.")
+			return false
+		end
+	else
 		CharacterSpeechInfo[character.Name] = {IsSpeaking = false, LastSpeech = 0.0}
 	end
 
-	--TODO: Experiment with different variations of this.
+	PrintDebugInfo("   Building prompt.")
+
 	-- Build the prompt header.
-	prompt_header = "Let's roleplay in the universe of Barotrauma. "
+	--[[prompt_header = "Let's roleplay in the universe of Barotrauma. "
+	prompt_header = prompt_header .. "Responses should be conversational and from a first-person perspective, without prefixes, emotes, actions, or narration of internal dialogue. "
+	prompt_header = prompt_header .. "When referencing the character traits or prompt, use unique words and phrases to convey the ideas without copying them exactly. "
+	prompt_header = prompt_header .. "Dialogue should be direct and immersive, staying true to the character’s perspective. "
+	prompt_header = prompt_header .. "Avoid asking questions or prompting for further information; instead, develop the narrative through the character’s actions and dialogue. "
+	prompt_header = prompt_header .. "Ensure that all responses are consistent with what the character knows and believes, and avoid introducing external information. <CUSTOM_INSTRUCTIONS>\\n\\n"]]--
+
+	--[[prompt_header = "Let's roleplay in the universe of Barotrauma. "
 	prompt_header = prompt_header .. "Responses should be conversational and from a first person perspective, without prefixes, emotes, actions, or narration of internal dialogue. "
 	prompt_header = prompt_header .. "When referencing the character traits or prompt, use unique words and phrases to convey the ideas without copying them exactly. "
-	prompt_header = prompt_header .. "Dialogue should be fresh, avoiding repetition. Responses should be consistent with what your character knows and believes.\\n\\n"
-	--[[local prompt_header = "Let's roleplay in the universe of Barotrauma. "
-	--prompt_header = prompt_header .. "You speak in a conversational manner, always from a first person perspective. "
-	prompt_header = prompt_header .. "You don't describe things or actions, just chat as your character from a first person perspective. "
-	prompt_header = prompt_header .. "Do not prefix your response with your name, your response should only be what your character would speak. "
-	prompt_header = prompt_header .. "Be creative in your choice of words, do not use the same phrasing provided to you in the prompt. "
-	--prompt_header = prompt_header .. "Limit your response to 200 characters. Do not say anything you've said before, and do not add any unknown information. "
-	prompt_header = prompt_header .. "Remember, no repeating past dialogue or introducing unknown facts or actions. Everything you say should be consistent with what your character knows and believes. "]]--
-	prompt_header = prompt_header .. "<LANGUAGE> <DEMOGRAPHICS> <PROFILE> <LOCATION> <MISSIONS> <ORDERS> <SUBMARINE><INVENTORY> <HEALTH> <SOURCE> <CONVERSATION_HISTORY>"
-
+	prompt_header = prompt_header .. "Dialogue should be fresh, avoiding repetition. Responses should be consistent with what your character knows and believes. <CUSTOM_INSTRUCTIONS>\\n\\n"]]--
+	
+	--[[---local prompt_header = "Let's roleplay in the universe of Barotrauma. "
+	---prompt_header = prompt_header .. "You speak in a conversational manner, always from a first person perspective. "
+	--prompt_header = prompt_header .. "You don't describe things or actions, just chat as your character. "
+	--prompt_header = prompt_header .. "Do not prefix your response with your name, your response should only be what your character would speak. "
+	---prompt_header = prompt_header .. "Keep your responses short, up to three sentences. "
+	local prompt_header = "Let's roleplay in the universe of Barotrauma. "
+	prompt_header = prompt_header .. "You speak in a conversational manner, always from a first person perspective. "
+	--prompt_header = prompt_header .. "Remember, no repeating past dialogue or introducing unknown facts or actions. Everything you say should be consistent with what your character knows and believes. "
+	--prompt_header = prompt_header .. "You don't describe things or actions, just chat as your character. "
+	prompt_header = prompt_header .. "Limit your response to 200 characters. Do not say anything you've said before. "]]--
+	
+	local prompt_header = AI_NPC.Config.PromptInstructions
+	prompt_header = prompt_header .. " <CUSTOM_INSTRUCTIONS>\\n\\n"
+	prompt_header = prompt_header .. "<LANGUAGE> <DEMOGRAPHICS> <PROFILE> <MISSIONS> <LOCATION> <ORDERS> <SUBMARINE> <INVENTORY> <HEALTH> <EXTRA_INFO> <CONVERSATION_HISTORY> "
+	
+	local CustomInstructionsPrompt = BuildCustomInstructionsPrompt(character)
+	prompt_header = prompt_header:gsub("<CUSTOM_INSTRUCTIONS>", CustomInstructionsPrompt)
+	
 	local LanguagePrompt = BuildLanguagePrompt(character)
 	prompt_header = prompt_header:gsub("<LANGUAGE>", LanguagePrompt)
 	
@@ -1633,79 +1778,366 @@ local function BuildPlayerPromptAndSend(client, character, msg, chattype, source
 	local HealthPrompt = BuildHealthPrompt(character)
 	prompt_header = prompt_header:gsub("<HEALTH>", HealthPrompt)
 
-	local SourcePrompt = BuildSourcePrompt(source, character)
-	prompt_header = prompt_header:gsub("<SOURCE>", SourcePrompt)
+	local ExtraInfoPrompt = extrainfo
+	prompt_header = prompt_header:gsub("<EXTRA_INFO>", ExtraInfoPrompt)
+
+	local ConversationHistoryPrompt = BuildConversationHistoryPrompt(character)
+	prompt_header = prompt_header:gsub("<CONVERSATION_HISTORY>", ConversationHistoryPrompt)
+
+	prompt_header = prompt_header .. "\\n\\nThis what you are trying to say next, but you need to transform it into the style of your character using only known information: "
+
+	-- Save some tokens by replacing consecutive spaces with a single space.
+	prompt_header = prompt_header:gsub("%s+", " ")
+
+	-- Write the full prompt to a file for debugging purposes.
+	File.Write(AI_NPC.Path .. "/Last_Prompt.txt", prompt_header .. "\\\"" .. message .. "\\\"")
 	
+	local data = {
+		model = AI_NPC.Config.Model,
+		messages = {{
+			role = "user",
+			content = prompt_header .. "\\\"" .. message .. "\\\""
+		}},
+		temperature = 0.7,
+		--frequency_penalty = 0.4
+	}
+
+	local JSONData = json.serialize(data)
+
+	-- Concatenate the header prompt with the player message and insert it into the JSON data of the HTTP request.
+	PrintDebugInfo(data["messages"][1]["content"])
+
+	local savePath = AI_NPC.Path .. "/HTTP_Response.txt" -- Save HTTP response to a file for debugging purposes.
+
+	if ValidateAPISettings() then
+		-- Send the prompt to API and process the output in MakeCharacterSpeak.
+		-- Comment this line out to test prompt formation without sending to API.
+		CharacterSpeechInfo[character.Name].IsSpeaking = true
+		CharacterSpeechInfo[character.Name].LastSpeech = Timer.GetTime()
+		LastSpeech = CharacterSpeechInfo[character.Name].LastSpeech
+		Networking.HttpPost(AI_NPC.Config.APIEndpoint, function(res) MakeCharacterSpeak(character, nil, character, res, identifier, delay, messageType, add_to_history) end, JSONData, "application/json", { ["Authorization"] = "Bearer " .. AI_NPC.Config.APIKey }, savePath)
+		return true
+	end
+	
+	return false
+end
+
+-- Patch to the Speak function to allow for NPCs to talk through AI without the player explicitly commanding them.
+-- Used in SP for NPC speach and Player orders, but not Player speach.
+-- Used in MP for NPC speach only.
+Hook.Patch('Barotrauma.Character', 'Speak', function(instance, ptable) 
+	ptable.PreventExecution = false
+
+	-- Check if configuration setting for this feature is turned on.
+	if not AI_NPC.Config.EnableForNPCs then
+		return
+	end
+	
+	-- Only use this for bots.
+	-- This prevents it from running whenever the player assigns an order.
+	if not instance.IsBot then
+		return
+	end
+
+	-- Exclude NPCs not on a player team.
+	-- This will exclude outpost chatter.
+	if not instance.IsOnPlayerTeam then
+		return
+	end
+	
+	-- Skip empty identifiers.
+	-- Just let anything with no identifier through, it doesn't work well with AI.
+	-- Examples: random NPC conversations and positive/negative response to orders like "Yes, sir!"
+	if not ptable['identifier'] or ptable['identifier'] == Identifier.Empty then
+		--PrintDebugInfo("Non-AI speach detected: '" .. ptable['message'] .. "', EMPTY IDENTIFIER")
+		return
+	end
+				
+	local identifier = ptable['identifier'].ToString()
+			
+	-- Ignore speech already ran through AI.
+	if #identifier >= 3 and identifier:sub(1, 3) == "ai_" then
+		PrintDebugInfo("AI Speach detected: " .. identifier)
+		return
+	elseif CharacterSpeechInfo[instance.Name] and CharacterSpeechInfo[instance.Name].IsSpeaking then
+		PrintDebugInfo("Skipping because character is currently saying something with AI.")
+		ptable['message'] = ""
+		return
+	end
+
+	-- Skip identifiers that should be ignored.
+	--if IsIgnoredSpeach(identifier) then
+	--	return
+	--end
+
+	--if string.find(identifier, "CharacterIssues") then
+	--	ptable['message'] = ""
+	--end
+
+	-- At this point we are at speach that can be processed via AI.
+	PrintDebugInfo("Non-AI speach detected: '" .. identifier .. ", " .. ptable['message'])	
+				
+	-- Determine if something similar has already been said by this NPC.
+	-- Once an NPC says something with an identifier, Barotrauma holds it in prevAiChatMessages until the minimum delay has been reached.
+	-- So if the identifier itself or the ai_ prefixed identifier are in the prevAiChatMessages queue, this has already been said recently.
+	for ident, ftime in pairs(instance.prevAiChatMessages) do
+		if (IsCharacterStatusDialogueIdentifier(tostring(ident)) and IsCharacterStatusDialogueIdentifier(identifier)) or string.find(ident.ToString(), identifier) then --ident == ptable['identifier'] then
+			PrintDebugInfo("   " .. tostring(ident) .. ", " .. tostring(ftime))--tostring(string.find(ident.ToString(), ptable['identifier'].ToString())))
+			PrintDebugInfo("   " .. Timer.GetTime() .. " - " .. ptable['minDurationBetweenSimilar'] .. " = " .. tostring(Timer.GetTime() - ptable['minDurationBetweenSimilar']))
+			if (ftime >= Timer.GetTime() - ptable['minDurationBetweenSimilar']) then
+				PrintDebugInfo("   Already said this.")
+				
+				if string.find(identifier, "CharacterIssues") then
+					ptable['message'] = ""
+				end
+				
+				return
+			else
+				PrintDebugInfo("   Can say this.")
+			end
+		--elseif IsCharacterStatusDialogueIdentifier(ident) and IsCharacterStatusDialogueIdentifier(identifier) then
+		--	PrintDebugInfo("   Already said this.")
+		--	ptable['message'] = ""
+		--	return
+		end
+	end
+
+	-- Random chance as determined from the ChanceForNPCSpeach configuration setting.
+	-- Just to reduce token use, if desired.	
+	if math.random(1, 100) >= AI_NPC.Config.ChanceForNPCSpeach then
+		PrintDebugInfo("   Skipping because of random chance.")
+		if string.find(identifier, "CharacterIssues") then
+			ptable['message'] = ""
+		end
+		return
+	end
+	--if (not string.find(identifier, "CharacterIssues")) and math.random(1, 100) >= AI_NPC.Config.ChanceForNPCSpeach then
+	--	PrintDebugInfo("   Skipping because of random chance.")
+		--if string.find(identifier, "CharacterIssues") then
+	--		ptable['message'] = ""
+		--end
+	--	return
+	--end
+	
+	local probability, delay, msg, extrainfo = GetAdjustedNPCSpeach(ptable['message'], identifier, minDurationBetweenSimilar, instance)
+	if math.random(1, 100) >= probability then
+		PrintDebugInfo("   Skipping because of low probability.")
+		if string.find(identifier, "CharacterIssues") then
+			ptable['message'] = ""
+		end
+		return
+	end
+	
+	local addToHistory = true
+	if IsCharacterStatusDialogueIdentifier(identifier) then
+		addToHistory = false
+	end
+
+	-- Send the message to AI for transformation.
+	-- If it returns true, it means the NPC chat has been sent to AI. Once the response has been received, that response function will call this Speak hook again
+	-- with the identifier starting with "ai_", which will be ignored by this function.
+	PrintDebugInfo("   Attempting to run through AI.")
+	--  ptable['messageType']
+	local spoke = NPCSpeak(instance, ChatMessageType.Radio, msg, "ai_"..identifier, delay, extrainfo, addToHistory)
+	
+	-- This prevents the original message from being processed by the Barotrauma.Character.Speak() function.
+	-- So it won't be spoken or added to the character's prevAiChatMessageQueue.
+	ptable['message'] = ""
+
+end, Hook.HookMethodType.Before)
+
+-- The original C# Speak function, for reference in the hook above.
+-- This runs after the hook.
+--[[
+public void Speak(string message, ChatMessageType? messageType = null, float delay = 0.0f, Identifier identifier = default, float minDurationBetweenSimilar = 0.0f)
+{
+	if (GameMain.NetworkMember != null && GameMain.NetworkMember.IsClient) { return; }
+	if (string.IsNullOrEmpty(message)) { return; }
+
+	if (SpeechImpediment >= 100.0f) { return; }
+
+	if (prevAiChatMessages.ContainsKey(identifier) && 
+		prevAiChatMessages[identifier] < Timing.TotalTime - minDurationBetweenSimilar) 
+	{ 
+		prevAiChatMessages.Remove(identifier);                 
+	}
+
+	//already sent a similar message a moment ago
+	if (identifier != Identifier.Empty && minDurationBetweenSimilar > 0.0f &&
+		(aiChatMessageQueue.Any(m => m.Identifier == identifier) || prevAiChatMessages.ContainsKey(identifier)))
+	{
+		return;
+	}
+	aiChatMessageQueue.Add(new AIChatMessage(message, messageType, identifier, delay));
+}--]]
+
+local function BuildPlayerPromptAndSend(client, character, msg, chattype, source)
+	if not CharacterSpeechInfo[character.Name] then
+		CharacterSpeechInfo[character.Name] = {IsSpeaking = false, LastSpeech = 0.0}
+	end
+
 	-- Determine if the character is close enough to hear the source.
-	-- For now, if the character isn't close enough to hear even the garbled message we aren't going to send to API,
-	-- otherwise we send the message as if the NPC heard it ungarbled.
 	local CanHear = false
-	local GarbledMsg = ChatMessage.ApplyDistanceEffect(msg, chattype, source, character)
+	-- Only treat it as radio chat if both characters have radio.
+	if chattype == ChatMessageType.Radio and source.Inventory.GetItemInLimbSlot(InvSlotType.Headset) and character.Inventory.GetItemInLimbSlot(InvSlotType.Headset) then
+		-- If it's a radio message and character has a radio, apply distance effects and if it's not completely garbled just let it through.
+		local GarbledMsg = ChatMessage.ApplyDistanceEffect(msg, chattype, source, character)
+		if GarbledMsg ~= nil and #GarbledMsg > 0 then
+			CanHear = true
+		end
+	else
+		-- If it's a local message, check garble and send a generic "Can't hear you!" if they are too far away for a local message to be understandable.
+		local garble = ChatMessage.GetGarbleAmount(character, source, ChatMessage.SpeakRange, 3.0)
+		--print(garble)
+		if garble <= 0.5 then
+			CanHear = true
+		elseif garble <= 0.7 then
+			CanHear = false
+			
+			local text = "What did you say? I can't hear you, " .. source.Name .. "! Move closer to me!"
+			if character.Inventory.GetItemInLimbSlot(InvSlotType.Headset) then
+				text = "What did you say? I can't hear you, " .. source.Name .. "! Use a radio or come closer!"
+			end
+			
+			local spoke = NPCSpeak(character, chattype, text, "ai_dialogaffirmative", 0.0, "", false)
+		else
+			-- If they are so far away that the message is completely garbled, just ignore it.
+			CanHear = false
+		end
+	end
+	
+	--[[local GarbledMsg = ChatMessage.ApplyDistanceEffect(msg, chattype, source, character)
 	if GarbledMsg ~= nil and #GarbledMsg > 0 then
 		CanHear = true
 		-- TODO: Experimental, passing garbled messages doesn't work well.
-		--[[if GarbledMsg ~= msg then
-			if chattype ~= ChatMessageType.Radio then
-				GarbledPrompt = ", it is coming in over the radio broken up"
-			else
-				GarbledPrompt = ","
-			end
-		end]]--
-	end
-	
-	local JSONData = nil
-	if AI_NPC.Config.UseMultipleMessages then
-		-- Split the data into multiple messages.
-		prompt_header = prompt_header:gsub("<CONVERSATION_HISTORY>", "")
-		prompt_header = prompt_header:gsub("%s+", " ")
-		
-		local prompt_messages = BuildJSONMessages(prompt_header, character, source, msg)
-		
-		local data = {
-			model = AI_NPC.Config.Model,
-			messages = prompt_messages,
-			temperature = 0.7,
-			--frequency_penalty = 0.4
-		}
-		
-		--PrintTable(data)
-		
-		JSONData = json.serialize(data)
-	else
-		-- Put everything into a single user message.
-		local ConversationHistoryPrompt = BuildConversationHistoryPrompt(character)
-		prompt_header = prompt_header:gsub("<CONVERSATION_HISTORY>", ConversationHistoryPrompt)
-		
-		prompt_header = prompt_header .. "\\n\\nThis is the current line you should respond to: "
-		prompt_header = prompt_header:gsub("%s+", " ")
-		
-		File.Write(AI_NPC.Path .. "/Last_Prompt.txt", prompt_header .. source.Name .. ": \"" .. msg .. "\"")
-		
-		local data = {
-			model = AI_NPC.Config.Model,
-			messages = {{
-				role = "user",
-				content = prompt_header .. source.Name .. ": \"" .. msg .. "\""
-			}},
-			temperature = 0.7,
-			--frequency_penalty = 0.4
-		}
-		
-		PrintDebugInfo(data["messages"][1]["content"])
-		
-		JSONData = json.serialize(data)
-	end
-	
-	local savePath = AI_NPC.Path .. "/HTTP_Response.txt" -- Save HTTP response to a file for debugging purposes.
+		--if GarbledMsg ~= msg then
+		--	if chattype ~= ChatMessageType.Radio then
+		--		GarbledPrompt = ", it is coming in over the radio broken up"
+		--	else
+		--		GarbledPrompt = ","
+		--	end
+		--end
+	end]]--
 
-	if ValidateAPISettings() and CanHear then
-		-- Only do moderation for OpenAI API calls if the Moderation setting is active.
-		if AI_NPC.Config.Moderation and string.find(AI_NPC.Config.APIEndpoint, "api.openai.com")  then
-			ModerateInput(JSONData, source, msg, character);
+	if CanHear then
+		--TODO: Experiment with different variations of this.
+		-- Build the prompt header.
+		--[[prompt_header = "Let's roleplay in the universe of Barotrauma. "
+		prompt_header = prompt_header .. "Responses should be conversational and from a first-person perspective, without prefixes, emotes, actions, or narration of internal dialogue. "
+		prompt_header = prompt_header .. "When referencing the character traits or prompt, use unique words and phrases to convey the ideas without copying them exactly. "
+		prompt_header = prompt_header .. "Dialogue should be direct and immersive, staying true to the character’s perspective. "
+		prompt_header = prompt_header .. "Avoid asking questions or prompting for further information; instead, develop the narrative through the character’s actions and dialogue. "
+		prompt_header = prompt_header .. "Ensure that all responses are consistent with what the character knows and believes, and avoid introducing external information. <CUSTOM_INSTRUCTIONS>\\n\\n"]]--
+		
+		--[[prompt_header = "Let's roleplay in the universe of Barotrauma. "
+		prompt_header = prompt_header .. "Responses should be conversational and from a first person perspective, without prefixes, emotes, actions, or narration of internal dialogue. "
+		prompt_header = prompt_header .. "When referencing the character traits or prompt, use unique words and phrases to convey the ideas without copying them exactly. "
+		prompt_header = prompt_header .. "Dialogue should be fresh, avoiding repetition. Responses should be consistent with what your character knows and believes. <CUSTOM_INSTRUCTIONS>\\n\\n"]]--
+		
+		--[[local prompt_header = "Let's roleplay in the universe of Barotrauma. "
+		--prompt_header = prompt_header .. "You speak in a conversational manner, always from a first person perspective. "
+		prompt_header = prompt_header .. "You don't describe things or actions, just chat as your character from a first person perspective. "
+		prompt_header = prompt_header .. "Do not prefix your response with your name, your response should only be what your character would speak. "
+		prompt_header = prompt_header .. "Be creative in your choice of words, do not use the same phrasing provided to you in the prompt. "
+		--prompt_header = prompt_header .. "Limit your response to 200 characters. Do not say anything you've said before, and do not add any unknown information. "
+		prompt_header = prompt_header .. "Remember, no repeating past dialogue or introducing unknown facts or actions. Everything you say should be consistent with what your character knows and believes. "]]--
+		
+		local prompt_header = AI_NPC.Config.PromptInstructions
+		prompt_header = prompt_header .. " <CUSTOM_INSTRUCTIONS>\\n\\n"
+		prompt_header = prompt_header .. "<LANGUAGE> <DEMOGRAPHICS> <PROFILE> <MISSIONS> <LOCATION> <ORDERS> <SUBMARINE> <INVENTORY> <HEALTH> <EXTRA_INFO> <CONVERSATION_HISTORY> "
+		prompt_header = prompt_header .. "<LANGUAGE> <DEMOGRAPHICS> <PROFILE> <MISSIONS> <LOCATION> <ORDERS> <SUBMARINE> <INVENTORY> <HEALTH>\\n\\n<SOURCE> <CONVERSATION_HISTORY>"
+
+		local CustomInstructionsPrompt = BuildCustomInstructionsPrompt(character)
+		prompt_header = prompt_header:gsub("<CUSTOM_INSTRUCTIONS>", CustomInstructionsPrompt)
+
+		local LanguagePrompt = BuildLanguagePrompt(character)
+		prompt_header = prompt_header:gsub("<LANGUAGE>", LanguagePrompt)
+		
+		local CharacterProfilePrompt = BuildCharacterProfilePrompt(character)
+		prompt_header = prompt_header:gsub("<PROFILE>", CharacterProfilePrompt)
+		
+		local DemographicsPrompt = BuildDemographicsPrompt(character)
+		prompt_header = prompt_header:gsub("<DEMOGRAPHICS>", DemographicsPrompt)
+		
+		local LocationPrompt = BuildLocationPrompt(character)
+		prompt_header = prompt_header:gsub("<LOCATION>", LocationPrompt)
+		
+		local SubmarinePrompt = BuildSubmarineStatePrompt(character)
+		prompt_header = prompt_header:gsub("<SUBMARINE>", SubmarinePrompt)
+		
+		local InventoryPrompt = BuildInventoryPrompt(character)
+		prompt_header = prompt_header:gsub("<INVENTORY>", InventoryPrompt)
+		
+		local OrdersPrompt = BuildOrdersPrompt(character)
+		prompt_header = prompt_header:gsub("<ORDERS>", OrdersPrompt)
+		
+		local MissionsPrompt = BuildMissionsPrompt(source, character)
+		prompt_header = prompt_header:gsub("<MISSIONS>", MissionsPrompt)
+
+		-- This hasn't been very useful so far.
+		--local NearbyCrewPrompt = BuildNearbyCrewPrompt(character)
+		--prompt_header = prompt_header:gsub("<NEARBY_CREW>", NearbyCrewPrompt)
+
+		local HealthPrompt = BuildHealthPrompt(character)
+		prompt_header = prompt_header:gsub("<HEALTH>", HealthPrompt)
+
+		local SourcePrompt = BuildSourcePrompt(source, character)
+		prompt_header = prompt_header:gsub("<SOURCE>", SourcePrompt)
+		
+		local JSONData = nil
+		if AI_NPC.Config.UseMultipleMessages then
+			-- Split the data into multiple messages.
+			prompt_header = prompt_header:gsub("<CONVERSATION_HISTORY>", "")
+			prompt_header = prompt_header:gsub("%s+", " ")
+			
+			local prompt_messages = BuildJSONMessages(prompt_header, character, source, msg)
+			
+			local data = {
+				model = AI_NPC.Config.Model,
+				messages = prompt_messages,
+				temperature = 0.7,
+				--frequency_penalty = 0.4
+			}
+			
+			--PrintTable(data)
+			
+			JSONData = json.serialize(data)
 		else
-			-- Send the prompt to API and process the output in MakeCharacterSpeak.
-			CharacterSpeechInfo[character.Name].IsSpeaking = true
-			Networking.HttpPost(AI_NPC.Config.APIEndpoint, function(res) MakeCharacterSpeak(source, msg, character, res, "dialogaffirmative", 0.0) end, JSONData, "application/json", { ["Authorization"] = "Bearer " .. AI_NPC.Config.APIKey }, savePath)
+			-- Put everything into a single user message.
+			local ConversationHistoryPrompt = BuildConversationHistoryPrompt(character)
+			prompt_header = prompt_header:gsub("<CONVERSATION_HISTORY>", ConversationHistoryPrompt)
+			
+			prompt_header = prompt_header .. "\\n\\nThis is the current line you should respond to: "
+			prompt_header = prompt_header:gsub("%s+", " ")
+			
+			File.Write(AI_NPC.Path .. "/Last_Prompt.txt", prompt_header .. source.Name .. ": \"" .. msg .. "\"")
+			
+			local data = {
+				model = AI_NPC.Config.Model,
+				messages = {{
+					role = "user",
+					content = prompt_header .. source.Name .. ": \"" .. msg .. "\""
+				}},
+				temperature = 0.7,
+				--frequency_penalty = 0.4
+			}
+			
+			PrintDebugInfo(data["messages"][1]["content"])
+			
+			JSONData = json.serialize(data)
+		end
+		
+		local savePath = AI_NPC.Path .. "/HTTP_Response.txt" -- Save HTTP response to a file for debugging purposes.
+
+		if ValidateAPISettings() then
+			-- Only do moderation for OpenAI API calls if the Moderation setting is active.
+			if AI_NPC.Config.Moderation and string.find(AI_NPC.Config.APIEndpoint, "api.openai.com")  then
+				ModerateInput(JSONData, source, msg, character, chattype);
+			else
+				-- Send the prompt to API and process the output in MakeCharacterSpeak.
+				CharacterSpeechInfo[character.Name].IsSpeaking = true
+				Networking.HttpPost(AI_NPC.Config.APIEndpoint, function(res) MakeCharacterSpeak(source, msg, character, res, "ai_dialogaffirmative", 0.0, chattype, true) end, JSONData, "application/json", { ["Authorization"] = "Bearer " .. AI_NPC.Config.APIKey }, savePath)
+			end
 		end
 	end
 	
@@ -1716,8 +2148,12 @@ local function BuildPlayerPromptAndSend(client, character, msg, chattype, source
 		return true
 	else
 		local firstName = string.match(character.Name, "%S+")
-		local chat_message = ChatMessage.Create(source.Name, firstName .. ', ' .. msg, chattype, client);
-		Game.GameSession.CrewManager.AddSinglePlayerChatMessage(chat_message);
+		local chat_message = ChatMessage.Create(source.Name, firstName .. ', ' .. msg, chattype, client)
+		Game.GameSession.CrewManager.AddSinglePlayerChatMessage(chat_message)
+		-- Create the speech bubble if that setting is enabled.
+		if GameSettings.CurrentConfig.ChatSpeechBubbles then
+			source.ShowSpeechBubble(ChatMessage.MessageColor[chattype+1], chat_message.Text)
+		end
 		return true;
 	end
 	
@@ -1742,7 +2178,7 @@ if SERVER then
 		end
 
 		-- Skip empty messages and messages that don't start with !.
-		if #message <= 1 or string.sub(message, 1, 1) ~= "!" then
+		if #message <= 1 or message:sub(1, 1) ~= "!" then
 			return false
 		end
 
@@ -1785,7 +2221,7 @@ else
 		end
 
 		-- Skip empty messages and messages that don't start with !.
-		if #message <= 1 or string.sub(message, 1, 1) ~= "!" then
+		if #message <= 1 or message:sub(1, 1) ~= "!" then
 			return false
 		end
 	
@@ -1816,6 +2252,19 @@ else
 		
 		return false
 	end)
+end
+
+-- Patch to prevent speech bubbles showing chat commands, only needed in single player.
+-- Speech bubble text comes straight from the text box,
+-- so it is not blocked by the return value of the chatMessage hook.
+if Game.IsSingleplayer then
+	Hook.Patch('Barotrauma.Character', 'ShowSpeechBubble', function(instance, ptable)
+		if ptable['text']:sub(1,1) == '!' then 
+			ptable.PreventExecution = true
+		else
+			ptable.PreventExecution = false
+		end
+	end, Hook.HookMethodType.Before)
 end
 
 --Game.GameSession.CrewManager.CreateRandomConversation()
