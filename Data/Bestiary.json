@@ -25,7 +25,7 @@
 	},
 	"mudraptor_hatchling": {
 		"Name": "mudraptor hatchling",
-		"Description": "agile, bipedal, covered in the red gooey insides its egg",
+		"Description": "agile, bipedal, covered in the red gooey insides of its egg",
 		"Size": "tiny",
 		"Loot": ""
 	},
@@ -53,9 +53,15 @@
 		"Size": "small",
 		"Loot": "alien blood"
 	},
+	"crawler_large": {
+		"Name": "crawler",
+		"Description": "agile with four pairs of red eyes, green skin, segmented spines on its back and two hand-like appendages that allow them to latch onto surfaces, swim and crawl",
+		"Size": "small",
+		"Loot": "alien blood"
+	},
 	"crawlerhusk": {
 		"Name": "husked crawler",
-		"Description": "agile with grey eyes, rotten grey-green skin, segmented spines on its back, husk stinger protruding from its mouth, and two hand-like appendages that allow them to latch onto surfaces, swim and crawl",
+		"Description": "agile with grey eyes, rotten grey-green skin, segmented spines on its back, infectious husk stinger protruding from its mouth, and two hand-like appendages that allow them to latch onto surfaces, swim and crawl",
 		"Size": "small",
 		"Loot": "alien blood, velonaceps calyx eggs"
 	},
@@ -65,15 +71,21 @@
 		"Size": "small",
 		"Loot": "alien blood"
 	},
+	"spineling_morbusine": {
+		"Name": "viperling",
+		"Description": "agile, spindly, with twelve metallic-white spines and scales on its rear, capable of twisting on the spot to get the best shot with its plethora of natural harpoons which inflict morbusine poisoning",
+		"Size": "small",
+		"Loot": "alien blood"
+	},
 	"tigerthresher": {
 		"Name": "tiger thresher",
-		"Description": "eel-like, with splotches and stripes along the body, a bioluminescent head, a dimly glowing tail, a spine adorned with spiny protrusions, and lacking visible eyes",
+		"Description": "eel-like, with splotches and stripes along the body, a bioluminescent head with an infectious bite, a dimly glowing tail, a spine adorned with spiny protrusions, and lacking visible eyes",
 		"Size": "small",
 		"Loot": "alien blood"
 	},
 	"husk": {
 		"Name": "husk",
-		"Description": "human wearing a rusted diving suit with stingers protruding from its broken helmet",
+		"Description": "human wearing a rusted diving suit with infectious stingers protruding from its broken helmet",
 		"Size": "small",
 		"Loot": "velonaceps calyx eggs"
 	},
@@ -88,6 +100,12 @@
 		"Description": "agile, bipedal, with an extremely sharp beak capable of breaching a submarine's hull, teal skin covered by many rust colored shells and tiny, almost vestigial hand-like appendages",
 		"Size": "small",
 		"Loot": "hydroxyapatite"
+	},
+	"mantis": {
+		"Name": "mantis",
+		"Description": "a brown crustacean with a segmented shell and a pair of powerful claws",
+		"Size": "small",
+		"Loot": "alien blood, paralyxis"
 	},
 	"hammerhead": {
 		"Name": "hammerhead",
