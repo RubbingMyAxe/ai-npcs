@@ -5,15 +5,20 @@
 -- Lets this run if on the server-side, if it's multiplayer, doesn't let it run on the client, and if it's singleplayer, lets it run on the client.
 if CLIENT and Game.IsMultiplayer then return end
 
-AI_NPC.Globals.SavedCharactersFile = ""
-AI_NPC.Globals.CharacterProfiles = {}
+-- Register HashSet<Identifier> so that it can be used when removing unlocked talents.
+--LuaUserData.RegisterType("System.Collections.Generic.HashSet`1[[Barotrauma.Identifier,BarotraumaCore]]")
+
+local Utils = AI_NPC.Utils
+local SaveData = AI_NPC.SaveData
+
+SaveData.SavedCharactersFile = "" 
 
 --TODO: Possibly add map seed for non-crew and non-special NPCs.
 if AI_NPC.Config.UseCharacterProfiles then 
 
 	-- Load the pre-generated NPC profiles.
 	local Profiles = json.parse(File.Read(AI_NPC.Data .. "/CharacterProfiles.json"))
-	AI_NPC.Globals.UniqueProfiles = json.parse(File.Read(AI_NPC.Data .. "/UniqueCharacterProfiles.json"))
+	AI_NPC.UniqueProfiles = json.parse(File.Read(AI_NPC.Data .. "/UniqueCharacterProfiles.json"))
 
 	-- Gets a random selection of styles from the list, up to the limit.
 	local function GetRandomStyle(list, minimum, limit)
@@ -22,7 +27,7 @@ if AI_NPC.Config.UseCharacterProfiles then
 		end
 		
 		-- Make a shallow copy of the list to preserve the original list.
-		local listCopy = ShallowCopyTable(list)
+		local listCopy = Utils.ShallowCopyTable(list)
 
 		-- Randomize the copy of the list.
 		for i = #listCopy, 2, -1 do
@@ -101,8 +106,7 @@ if AI_NPC.Config.UseCharacterProfiles then
 	-- writes it to the SavedCharactersFile.
 	function AssignProfile(character, guaranteed)
 		if not character.Info.PersonalityTrait or not character.Info.PersonalityTrait.DisplayName then
-			
-			AI_NPC.Globals.CharacterProfiles[character.Name] =
+			AI_NPC.CharacterProfiles[tostring(character.Info.GetIdentifierUsingOriginalName())] =
 			{
 				["Description"] = "",
 				["Style"] = ""
@@ -110,62 +114,11 @@ if AI_NPC.Config.UseCharacterProfiles then
 			}
 			
 			-- Write this profile into the SavedCharactersFile to preserve it.
-			File.Write(AI_NPC.Globals.SavedCharactersFile, json.serialize(AI_NPC.Globals.CharacterProfiles))
+			File.Write(SaveData.SavedCharactersFile, json.serialize(AI_NPC.CharacterProfiles))
 			return
 		end
 		
-		local role = ""
-
-		-- If it's an outpost NPC, get their role from their attire.
-		if character.HumanPrefab and character.HumanPrefab.NpcSetIdentifier then
-			local identifier = character.HumanPrefab.NpcSetIdentifier
-
-			if identifier == "outpostnpcs1" then
-			
-				-- Wanted to use character.Info.HumanPrefabIds to determine what kind of outpost NPC,
-				-- but that is not possible in Lua so I have to use another less clean method...
-				local clothing = character.Inventory.GetItemInLimbSlot(InvSlotType.InnerClothes)
-				local helmet = character.Inventory.GetItemInLimbSlot(InvSlotType.Head)
-				
-				local commoner_attire = { "commonerclothes1", "commonerclothes2", "commonerclothes3", "commonerclothes4", "commonerclothes5" }
-				local miner_attire = { "minerclothes" }
-				local clown_attire = { "clowncostume" }
-				local clown_mask = { "clownmask" }
-				local researcher_attire = { "researcherclothes" }
-				local husk_attire = { "cultistrobes", "zealotrobes" }
-
-				if clothing then
-					if clothing.HasIdentifierOrTags(commoner_attire) then
-						role = "civilian"
-					elseif clothing.HasIdentifierOrTags(miner_attire) then
-						role = "miner"
-					elseif clothing.HasIdentifierOrTags(clown_attire) or (helmet and helmet.HasIdentifierOrTags(clown_mask)) then
-						role = "clown"
-					elseif clothing.HasIdentifierOrTags(researcher_attire) then
-						role = "researcher"
-					elseif clothing.HasIdentifierOrTags(husk_attire) then
-						role = "husk cultist"
-					end
-				end
-			end
-		end
-		
-		-- If it's not an outpost NPC, use their role.
-		if string.len(role) == 0 then
-			if character.IsMedic then
-				role = "medic"
-			elseif character.IsSecurity then
-				role = "security"
-			elseif character.IsMechanic then
-				role = "mechanic"
-			elseif character.IsEngineer then
-				role = "electrician"
-			elseif character.IsCaptain then
-				role = "captain"
-			else
-				role = "assistant"
-			end
-		end
+		local role = AI_NPC.Utils.GetRole(character)
 
 		-- TODO: Experimental code for saving character with map seed.
 		--[[local map_seed = ""
@@ -179,14 +132,21 @@ if AI_NPC.Config.UseCharacterProfiles then
 		local personality = string.lower(character.Info.PersonalityTrait.DisplayName.Value)
 		local profile, style = GetRandomProfile(personality, string.lower(role), character.IsOnPlayerTeam, guaranteed)
 
-		AI_NPC.Globals.CharacterProfiles[character.Name] =
+		AI_NPC.CharacterProfiles[tostring(character.Info.GetIdentifierUsingOriginalName())] =
 		{
 			["Description"] = profile,
 			["Style"] = style
 			--["MapSeed"] = map_seed
 		}
 		
+		-- Give talent.
+		--character.GiveTalent("mytalent", true)
+		--character.Info.UnlockedTalents.Remove("mytalent")
+		--if SERVER then
+		--	Networking.CreateEntityEvent(character, UpdateTalentsEventData);
+		--end
+		
 		-- Write this profile into the SavedCharactersFile to preserve it.
-		File.Write(AI_NPC.Globals.SavedCharactersFile, json.serialize(AI_NPC.Globals.CharacterProfiles))
+		File.Write(SaveData.SavedCharactersFile, json.serialize(AI_NPC.CharacterProfiles))
 	end
 end
