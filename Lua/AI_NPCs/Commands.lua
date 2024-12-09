@@ -2,6 +2,9 @@
 	Commands
 --]]
 
+local SaveData = AI_NPC.SaveData
+local Utils = AI_NPC.Utils
+
 -- Get list of configuration file values for the parameter list.
 local function configParameter()
 	local configNames = {}
@@ -58,7 +61,7 @@ if SERVER then
 		if HasManageSettingsPermission then
 			setConfig(args)
 		else
-			print(MakeErrorText("Client does not have permission to manage settings."))
+			print(Utils.MakeErrorText("Client does not have permission to manage settings."))
 		end
 	end)
 
@@ -68,7 +71,7 @@ if SERVER then
 		if HasManageSettingsPermission then
 			getConfig(args)
 		else
-			print(MakeErrorText("Client does not have permission to manage settings."))
+			print(Utils.MakeErrorText("Client does not have permission to manage settings."))
 		end
 	end)
 
@@ -78,7 +81,7 @@ if SERVER then
 		if HasManageSettingsPermission then
 			listConfig()
 		else
-			print(MakeErrorText("Client does not have permission to manage settings."))
+			print(Utils.MakeErrorText("Client does not have permission to manage settings."))
 		end
 	end)
 	
@@ -88,7 +91,7 @@ if SERVER then
 		if HasManageSettingsPermission then
 			setProfile(args)
 		else
-			print(MakeErrorText("Client does not have permission to manage settings."))
+			print(Utils.MakeErrorText("Client does not have permission to manage settings."))
 		end
 	end)
 
@@ -98,7 +101,7 @@ if SERVER then
 		if HasManageSettingsPermission then
 			getProfile(args)
 		else
-			print(MakeErrorText("Client does not have permission to manage settings."))
+			print(Utils.MakeErrorText("Client does not have permission to manage settings."))
 		end
 	end)
 
@@ -108,7 +111,7 @@ if SERVER then
 		if HasManageSettingsPermission then
 			setStyle(args)
 		else
-			print(MakeErrorText("Client does not have permission to manage settings."))
+			print(Utils.MakeErrorText("Client does not have permission to manage settings."))
 		end
 	end)
 	
@@ -118,7 +121,7 @@ if SERVER then
 		if HasManageSettingsPermission then
 			giveRandomProfile(args)
 		else
-			print(MakeErrorText("Client does not have permission to manage settings."))
+			print(Utils.MakeErrorText("Client does not have permission to manage settings."))
 		end
 	end)
 
@@ -128,7 +131,7 @@ if SERVER then
 		if HasManageSettingsPermission then
 			clearProfile(args)
 		else
-			print(MakeErrorText("Client does not have permission to manage settings."))
+			print(Utils.MakeErrorText("Client does not have permission to manage settings."))
 		end
 	end)
 
@@ -138,7 +141,7 @@ if SERVER then
 		if HasManageSettingsPermission then
 			clearConversationHistory(args)
 		else
-			print(MakeErrorText("Client does not have permission to manage settings."))
+			print(Utils.MakeErrorText("Client does not have permission to manage settings."))
 		end
 	end)
 end
@@ -153,21 +156,21 @@ if (Game.IsMultiplayer and SERVER) or Game.IsSingleplayer then
 				newvalue = ""
 			end
 		
-			if AI_NPC.ConfigType == "number" then
+			if AI_NPC.ConfigType[setting] == "number" then
 				local IsNumber = tonumber(newvalue)
 				if IsNumber then
 					AI_NPC.Config[setting] = IsNumber
 				else
-					print(MakeErrorText(setting .. " requires a numerical value."))
+					print(Utils.MakeErrorText(setting .. " requires a numerical value."))
 					return
 				end
-			elseif AI_NPC.ConfigType == "boolean" then
+			elseif AI_NPC.ConfigType[setting] == "boolean" then
 				if newvalue:lower() == "true" then
 					AI_NPC.Config[setting] = true
 				elseif newvalue:lower() == "false" then
 					AI_NPC.Config[setting] = false
 				else
-					print(MakeErrorText(setting .. " requires a true or false value."))
+					print(Utils.MakeErrorText(setting .. " requires a true or false value."))
 					return
 				end
 			else
@@ -186,7 +189,7 @@ if (Game.IsMultiplayer and SERVER) or Game.IsSingleplayer then
 				end
 			end
 		else
-			print(MakeErrorText(setting .. " not found in configuration file."))
+			print(Utils.MakeErrorText(setting .. " not found in configuration file."))
 		end
 	end
 
@@ -194,7 +197,7 @@ if (Game.IsMultiplayer and SERVER) or Game.IsSingleplayer then
 		if AI_NPC.Config[setting] then
 			print(setting .. ": " .. tostring(AI_NPC.Config[setting]))
 		else
-			print(MakeErrorText(setting .. " not found in configuration file."))
+			print(Utils.MakeErrorText(setting .. " not found in configuration file."))
 		end
 	end
 
@@ -209,43 +212,43 @@ if (Game.IsMultiplayer and SERVER) or Game.IsSingleplayer then
 
 	local function SetProfile(character, str)
 		if not AI_NPC.Config.UseCharacterProfiles then
-			print(MakeErrorText("Character Profiles are not enabled."))
-			print(MakeErrorText("Use the  \"" .. AI_NPC.CmdPrefix .. "setconfig UseCharacterProfiles true\" command to enable them!"))
+			print(Utils.MakeErrorText("Character Profiles are not enabled."))
+			print(Utils.MakeErrorText("Use the  \"" .. AI_NPC.CmdPrefix .. "setconfig UseCharacterProfiles true\" command to enable them!"))
 			return
 		end
 		
-		AI_NPC.Globals.CharacterProfiles[character.Name].Description = str
+		AI_NPC.CharacterProfiles[tostring(character.Info.GetIdentifierUsingOriginalName())].Description = str
 		-- Write this profile into the profiles file to preserve it.
-		File.Write(AI_NPC.Globals.SavedCharactersFile, json.serialize(AI_NPC.Globals.CharacterProfiles))
+		File.Write(SaveData.SavedCharactersFile, json.serialize(AI_NPC.CharacterProfiles))
 		print(character.Name .. " profile has been set to: " .. str)
 	end
 
 	local function GetProfile(character)
 		if not AI_NPC.Config.UseCharacterProfiles then
-			print(MakeErrorText("Character Profiles are not enabled."))
-			print(MakeErrorText("Use the  \"" .. AI_NPC.CmdPrefix .. "setconfig UseCharacterProfiles true\" command to enable them!"))
+			print(Utils.MakeErrorText("Character Profiles are not enabled."))
+			print(Utils.MakeErrorText("Use the  \"" .. AI_NPC.CmdPrefix .. "setconfig UseCharacterProfiles true\" command to enable them!"))
 			return
 		end
 		
 		local Profile = ""
-		if AI_NPC.Globals.UniqueProfiles[character.Name] then
+		if AI_NPC.UniqueProfiles[character.Name] then
 			-- If it's a unique character's name.
-			Profile = AI_NPC.Globals.UniqueProfiles[character.Name].Description
+			Profile = AI_NPC.UniqueProfiles[character.Name].Description
 			print(character.Name .. "'s Profile: " .. Profile)
 			return
-		elseif AI_NPC.Globals.CharacterProfiles[character.Name] then
-			Profile = AI_NPC.Globals.CharacterProfiles[character.Name].Description
+		elseif AI_NPC.CharacterProfiles[tostring(character.Info.GetIdentifierUsingOriginalName())] then
+			Profile = AI_NPC.CharacterProfiles[tostring(character.Info.GetIdentifierUsingOriginalName())].Description
 			print(character.Name .. "'s Profile: " .. Profile)
 			return
 		else
-			print(MakeErrorText("No profile found for " .. character.Name .. "."))
+			print(Utils.MakeErrorText("No profile found for " .. character.Name .. "."))
 		end
 	end
 
 	local function ClearProfile(character)
 		if not AI_NPC.Config.UseCharacterProfiles then
-			print(MakeErrorText("Character Profiles are not enabled."))
-			print(MakeErrorText("Use the  \"" .. AI_NPC.CmdPrefix .. "setconfig UseCharacterProfiles true\" command to enable them!"))
+			print(Utils.MakeErrorText("Character Profiles are not enabled."))
+			print(Utils.MakeErrorText("Use the  \"" .. AI_NPC.CmdPrefix .. "setconfig UseCharacterProfiles true\" command to enable them!"))
 			return
 		end
 
@@ -254,42 +257,42 @@ if (Game.IsMultiplayer and SERVER) or Game.IsSingleplayer then
 	
 	local function SetStyle(character, str)
 		if not AI_NPC.Config.UseCharacterProfiles then
-			print(MakeErrorText("Character Profiles are not enabled."))
-			print(MakeErrorText("Use the  \"" .. AI_NPC.CmdPrefix .. "setconfig UseCharacterProfiles true\" command to enable them!"))
+			print(Utils.MakeErrorText("Character Profiles are not enabled."))
+			print(Utils.MakeErrorText("Use the  \"" .. AI_NPC.CmdPrefix .. "setconfig UseCharacterProfiles true\" command to enable them!"))
 			return
 		end
 		
-		AI_NPC.Globals.CharacterProfiles[character.Name].Style = str
+		AI_NPC.CharacterProfiles[tostring(character.Info.GetIdentifierUsingOriginalName())].Style = str
 		-- Write this profile into the profiles file to preserve it.
-		File.Write(AI_NPC.Globals.SavedCharactersFile, json.serialize(AI_NPC.Globals.CharacterProfiles))
+		File.Write(SaveData.SavedCharactersFile, json.serialize(AI_NPC.CharacterProfiles))
 		print(character.Name .. " style has been set to: " .. str)
 	end
 
 	local function GiveRandomProfile(character)
 		if not AI_NPC.Config.UseCharacterProfiles then
-			print(MakeErrorText("Character Profiles are not enabled."))
-			print(MakeErrorText("Use the  \"" .. AI_NPC.CmdPrefix .. "setconfig UseCharacterProfiles true\" command to enable them!"))
+			print(Utils.MakeErrorText("Character Profiles are not enabled."))
+			print(Utils.MakeErrorText("Use the  \"" .. AI_NPC.CmdPrefix .. "setconfig UseCharacterProfiles true\" command to enable them!"))
 			return
 		end
 
 		AssignProfile(character, true)
 		
-		if AI_NPC.Globals.CharacterProfiles[character.Name] then
+		if AI_NPC.CharacterProfiles[tostring(character.Info.GetIdentifierUsingOriginalName())] then
 			print(character.Name .. " profile has been set.")
-			print("Description: " .. AI_NPC.Globals.CharacterProfiles[character.Name].Description)
-			print("Style: " .. AI_NPC.Globals.CharacterProfiles[character.Name].Style)
+			print("Description: " .. AI_NPC.CharacterProfiles[tostring(character.Info.GetIdentifierUsingOriginalName())].Description)
+			print("Style: " .. AI_NPC.CharacterProfiles[tostring(character.Info.GetIdentifierUsingOriginalName())].Style)
 		else
-			print(MakeErrorText("Character profile not set."))
+			print(Utils.MakeErrorText("Character profile not set."))
 		end
 	end
 
 	local function ClearConversationHistory(character)
-		local filename = string.format("%s/%s.txt", AI_NPC.Globals.CurrentSaveDirectory, character.Name)
+		local filename = string.format("%s/%s - %s.txt", SaveData.CurrentSaveDirectory, tostring(character.Info.GetIdentifierUsingOriginalName()), character.Info.OriginalName)
 		if File.Exists(filename) then
 			File.Delete(filename)
 			print(character.Name .. "'s conversation history has been deleted.")
 		else
-			print(MakeErrorText("No conversation history found for " .. character.Name .. "."))
+			print(Utils.MakeErrorText("No conversation history found for " .. character.Name .. "."))
 		end
 	end
 
@@ -298,7 +301,7 @@ if (Game.IsMultiplayer and SERVER) or Game.IsSingleplayer then
 		if args and args[1] then
 			ModifyConfigSetting(args[1], args[2])
 		else
-			print(MakeErrorText("Invalid argument list. Usage: " .. AI_NPC.CmdPrefix .. "setconfig [setting] [value]"))
+			print(Utils.MakeErrorText("Invalid argument list. Usage: " .. AI_NPC.CmdPrefix .. "setconfig [setting] [value]"))
 		end
 	end
 
@@ -306,7 +309,7 @@ if (Game.IsMultiplayer and SERVER) or Game.IsSingleplayer then
 		if args and args[1] then
 			GetConfigSetting(args[1])
 		else
-			print(MakeErrorText("Invalid argument list. Usage: " .. AI_NPC.CmdPrefix .. "getconfig [setting]"))
+			print(Utils.MakeErrorText("Invalid argument list. Usage: " .. AI_NPC.CmdPrefix .. "getconfig [setting]"))
 		end
 	end
 
@@ -316,103 +319,103 @@ if (Game.IsMultiplayer and SERVER) or Game.IsSingleplayer then
 
 	function setProfile(args)
 		if not args or not args[1] then
-			print(MakeErrorText("Invalid argument list. Usage: " .. AI_NPC.CmdPrefix .. "setprofile [character] [profile]"))
+			print(Utils.MakeErrorText("Invalid argument list. Usage: " .. AI_NPC.CmdPrefix .. "setprofile [character] [profile]"))
 			return
 		end
 		
-		local targetname = string.lower(RemoveQuotes(args[1]))
+		local targetname = string.lower(Utils.RemoveQuotes(args[1]))
 		
 		local profile = ""
 		if args[2] then
 			profile = TrimLeadingWhitespace(table.concat(args, " ", 2))
 		end
 		
-		local character = FindValidCharacter(targetname, false)
+		local character = Utils.FindValidCharacter(targetname, false)
 		if character then
 			SetProfile(character, profile)
 		else
-			print(MakeErrorText("Character not found. Usage: " .. AI_NPC.CmdPrefix .. "setprofile [character] [profile]"))
+			print(Utils.MakeErrorText("Character not found. Usage: " .. AI_NPC.CmdPrefix .. "setprofile [character] [profile]"))
 		end
 	end
 
 	function getProfile(args)
 		if not args or not args[1] then
-			print(MakeErrorText("Invalid argument list. Usage: " .. AI_NPC.CmdPrefix .. "getprofile [character]"))
+			print(Utils.MakeErrorText("Invalid argument list. Usage: " .. AI_NPC.CmdPrefix .. "getprofile [character]"))
 			return
 		end
 		
-		local targetname = string.lower(RemoveQuotes(args[1]))
-		local character = FindValidCharacter(targetname, false)
+		local targetname = string.lower(Utils.RemoveQuotes(args[1]))
+		local character = Utils.FindValidCharacter(targetname, false)
 		if character then
 			GetProfile(character)
 		else
-			print(MakeErrorText("Character not found. Usage: " .. AI_NPC.CmdPrefix .. "getprofile [character]"))
+			print(Utils.MakeErrorText("Character not found. Usage: " .. AI_NPC.CmdPrefix .. "getprofile [character]"))
 		end
 	end
 
 	function clearProfile(args)
 		if not args or not args[1] then
-			print(MakeErrorText("Invalid argument list. Usage: " .. AI_NPC.CmdPrefix .. "clearprofile [character]"))
+			print(Utils.MakeErrorText("Invalid argument list. Usage: " .. AI_NPC.CmdPrefix .. "clearprofile [character]"))
 			return
 		end
 		
-		local targetname = string.lower(RemoveQuotes(args[1]))
-		local character = FindValidCharacter(targetname, false)
+		local targetname = string.lower(Utils.RemoveQuotes(args[1]))
+		local character = Utils.FindValidCharacter(targetname, false)
 		if character then
 			ClearProfile(character)
 		else
-			print(MakeErrorText("Character not found. Usage: " .. AI_NPC.CmdPrefix .. "clearprofile [character]"))
+			print(Utils.MakeErrorText("Character not found. Usage: " .. AI_NPC.CmdPrefix .. "clearprofile [character]"))
 		end
 	end
 	
 	function setStyle(args)
 		if not args or not args[1] then
-			print(MakeErrorText("Invalid argument list. Usage: " .. AI_NPC.CmdPrefix .. "setstyle [character] [style]"))
+			print(Utils.MakeErrorText("Invalid argument list. Usage: " .. AI_NPC.CmdPrefix .. "setstyle [character] [style]"))
 			return
 		end
 		
-		local targetname = string.lower(RemoveQuotes(args[1]))
+		local targetname = string.lower(Utils.RemoveQuotes(args[1]))
 		
 		local style = ""
 		if args[2] then
 			style = TrimLeadingWhitespace(table.concat(args, " ", 2))
 		end
 		
-		local character = FindValidCharacter(targetname, false)
+		local character = Utils.FindValidCharacter(targetname, false)
 		if character then
 			SetStyle(character, style)
 		else
-			print(MakeErrorText("Character not found. Usage: " .. AI_NPC.CmdPrefix .. "setstyle [character] [style]"))
+			print(Utils.MakeErrorText("Character not found. Usage: " .. AI_NPC.CmdPrefix .. "setstyle [character] [style]"))
 		end
 	end
 	
 	function giveRandomProfile(args)
 		if not args or not args[1] then
-			print(MakeErrorText("Invalid argument list. Usage: " .. AI_NPC.CmdPrefix .. "giverandomprofile [character]"))
+			print(Utils.MakeErrorText("Invalid argument list. Usage: " .. AI_NPC.CmdPrefix .. "giverandomprofile [character]"))
 			return
 		end
 		
-		local targetname = string.lower(RemoveQuotes(args[1]))
-		local character = FindValidCharacter(targetname, false)
+		local targetname = string.lower(Utils.RemoveQuotes(args[1]))
+		local character = Utils.FindValidCharacter(targetname, false)
 		if character then
 			GiveRandomProfile(character)
 		else
-			print(MakeErrorText("Character not found. Usage: " .. AI_NPC.CmdPrefix .. "giverandomprofile [character]"))
+			print(Utils.MakeErrorText("Character not found. Usage: " .. AI_NPC.CmdPrefix .. "giverandomprofile [character]"))
 		end
 	end
 	
 	function clearConversationHistory(args)
 		if not args or not args[1] then
-			print(MakeErrorText("Invalid argument list. Usage: " .. AI_NPC.CmdPrefix .. "clearconversationhistory [character]"))
+			print(Utils.MakeErrorText("Invalid argument list. Usage: " .. AI_NPC.CmdPrefix .. "clearconversationhistory [character]"))
 			return
 		end
 		
-		local targetname = string.lower(RemoveQuotes(args[1]))
-		local character = FindValidCharacter(targetname, false)
+		local targetname = string.lower(Utils.RemoveQuotes(args[1]))
+		local character = Utils.FindValidCharacter(targetname, false)
 		if character then
 			ClearConversationHistory(character)
 		else
-			print(MakeErrorText("Character not found. Usage: " .. AI_NPC.CmdPrefix .. "clearconversationhistory [character]"))
+			print(Utils.MakeErrorText("Character not found. Usage: " .. AI_NPC.CmdPrefix .. "clearconversationhistory [character]"))
 		end
 	end
 end
