@@ -228,7 +228,7 @@ local function setupConfigMenu()
 				return
 			end
 			
-			if type(AI_NPC.Config[configSetting]) != "string" then
+			if type(AI_NPC.Config[configSetting]) ~= "string" then
 				print(MakeErrorText("Invalid value for " .. configSetting .. ", reverting to default."))
 				AI_NPC.Config[configSetting] = AI_NPC.DefaultConfig[configSetting]
 				File.Write(AI_NPC.ConfigPath, json.serialize(AI_NPC.Config))
